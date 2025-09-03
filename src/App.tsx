@@ -693,7 +693,8 @@ function App() {
             age_range: questionnaireData.ageRange,
             nationality: questionnaireData.nationality,
             occupation: questionnaireData.occupation,
-            additional_comments: questionnaireData.additionalComments
+            additional_comments: questionnaireData.additionalComments,
+            email: questionnaireData.email
           });
         console.log('Questionnaire data saved');
       } catch (error) {

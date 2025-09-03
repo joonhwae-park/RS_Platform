@@ -32,6 +32,7 @@ export interface QuestionnaireData {
   nationality?: string;
   occupation?: string;
   additionalComments?: string;
+  email?: string;
 }
 
 export interface PhaseTransition {

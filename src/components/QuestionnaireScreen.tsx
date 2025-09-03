@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { QuestionnaireData } from '../types';
-import { CheckCircle, User, Globe, Briefcase, MessageSquare } from 'lucide-react';
+import { CheckCircle, User, Globe, Briefcase, MessageSquare, Mail } from 'lucide-react';
 
 interface QuestionnaireScreenProps {
   onComplete: (data: QuestionnaireData) => void;
@@ -20,7 +20,8 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
     ageRange: '',
     nationality: '',
     occupation: '',
-    additionalComments: ''
+    additionalComments: '',
+    email: ''
   });
 
   const [errors, setErrors] = useState<string[]>([]);
@@ -346,6 +347,24 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               />
             </div>
 
+
+            {/* Email for Lottery */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3 flex items-center">
+                <Mail className="mr-2" size={20} />
+                Email Address for Lottery Participation (Optional)
+              </label>
+              <input
+                type="email"
+                value={formData.email || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="Enter your email address to participate in the lottery"
+                className="w-full bg-gray-800 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <p className="text-gray-400 text-sm mt-2">
+                If you provide your email, you'll be eligible for the lottery to win a video-on-demand (VOD) rental of your highest-rated recommended movie.
+              </p>
+            </div>
 
             {/* Additional Comments */}
             <div className="mb-6">
