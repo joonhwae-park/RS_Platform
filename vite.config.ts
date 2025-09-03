@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   server: {
     headers: {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -15,6 +15,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: undefined,
