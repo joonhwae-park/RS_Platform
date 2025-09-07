@@ -11,8 +11,8 @@ WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 P5_ROOT = os.getenv("P5_ROOT", "/workspace/P5-main")
 P5_CKPT = os.getenv("P5_CKPT", "/models/p5/checkpoint.pth")
 P5_BACKBONE = os.getenv("P5_BACKBONE", "t5-small")
-P5_MAX_LEN = int(os.getenv("P5_MAX_LEN", "512"))          # Aligned with test_ml1m_small.py
-P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "64"))   # generate(max_length=...)
+P5_MAX_LEN = int(os.getenv("P5_MAX_LEN", "256"))
+P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "6"))
 P5_DROPOUT = float(os.getenv("P5_DROPOUT", "0.1"))
 P5_BATCH = int(os.getenv("P5_BATCH", "16"))
 
@@ -154,7 +154,7 @@ def _first_float(text: str, default: float = -1.0) -> float:
     m = re.search(r"-?\d+(\.\d+)?", text.strip())
     return float(m.group(0)) if m else default
 
-def make_p5_prompt(session_id: str, movie_id: str) -> str:
+def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]] = None) -> str:
     return f"Which star rating will user_{session_id} give movie_{movie_id}? (0 being lowest and 10 being highest)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
