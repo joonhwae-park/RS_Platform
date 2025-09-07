@@ -1,4 +1,3 @@
-# app.py
 import os, sys, re, json, torch, numpy as np, random
 from typing import List, Dict, Tuple, Optional
 from fastapi import FastAPI, HTTPException, Header
@@ -16,6 +15,15 @@ P5_MAX_LEN = int(os.getenv("P5_MAX_LEN", "512"))          # Aligned with test_ml
 P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "64"))   # generate(max_length=...)
 P5_DROPOUT = float(os.getenv("P5_DROPOUT", "0.1"))
 P5_BATCH = int(os.getenv("P5_BATCH", "16"))
+
+# Soft prompt (hf PEFT)
+SOFTPROMPT_METHOD = os.getenv("SOFTPROMPT_METHOD", "prompt_tuning")  # 'prompt_tuning' or 'p_tuning'
+SOFTPROMPT_VTOKENS = int(os.getenv("SOFTPROMPT_VTOKENS", "40"))
+SOFTPROMPT_LR = float(os.getenv("SOFTPROMPT_LR", "5e-4"))
+SOFTPROMPT_STEPS = 10
+SOFTPROMPT_BSZ = int(os.getenv("SOFTPROMPT_BSZ", "8"))
+SOFTPROMPT_INIT_TEXT = os.getenv("SOFTPROMPT_INIT_TEXT", "rating prediction")
+HISTORY_MAX_TRAIN = 30
 
 SVD_DIR = os.getenv("SVD_DIR", "/models/svd/v1")  # Directory where SVD files are stored (e.g., V.npy, ...)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -38,7 +46,7 @@ def load_svd():
     ITEM_IDS = np.array(json.load(open(f"{SVD_DIR}/item_ids.json")))
     ITEM_BIAS = np.load(f"{SVD_DIR}/item_bias.npy").astype("float32") if os.path.exists(f"{SVD_DIR}/item_bias.npy") \
                 else np.zeros(len(ITEM_IDS), dtype="float32")
-    MU = json.load(open(f"{SVD_DIR}/global_mean.json")).get("mu", 0.0) if os.path.exists(f"{SVD_DIR}/global_mean.json") else 0.0
+    MU = json.load(open(f"{SVD_DIR}/global_mean.json")).get("mu", 7.31) if os.path.exists(f"{SVD_DIR}/global_mean.json") else 7.31
     REG = json.load(open(f"{SVD_DIR}/lambda.json")).get("reg", 0.05) if os.path.exists(f"{SVD_DIR}/lambda.json") else 0.05
     IDX = {mid: i for i, mid in enumerate(ITEM_IDS)}
 
@@ -77,7 +85,9 @@ from src.tokenization import P5Tokenizer
 from src.pretrain_model import P5Pretraining
 from src.utils import load_state_dict
 
-TOKENIZER, P5MODEL = None, None
+from peft import get_peft_model, PromptTuningConfig, PromptEncoderConfig, TaskType
+
+TOKENIZER, BASE_STATE = None, None  # 전역 캐시(디스크 I/O 최소화)
 
 def create_config_eval():
     cfg = T5Config.from_pretrained(P5_BACKBONE)
@@ -88,44 +98,130 @@ def create_config_eval():
     cfg.losses = "rating"
     return cfg
 
-def load_p5():
-    global TOKENIZER, P5MODEL
+def load_tokenizer_once():
+    global TOKENIZER
+    if TOKENIZER is not None:
+        return
     TOKENIZER = P5Tokenizer.from_pretrained(P5_BACKBONE, max_length=P5_MAX_LEN, do_lower_case=False)
-    cfg = create_config_eval()
-    P5MODEL = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg).to(DEVICE)
-    P5MODEL.resize_token_embeddings(TOKENIZER.vocab_size)
-    P5MODEL.tokenizer = TOKENIZER
-    P5MODEL.eval()
+
+def load_base_state_once():
+    global BASE_STATE
+    if BASE_STATE is not None:
+        return
     if os.path.exists(P5_CKPT):
-        state = load_state_dict(P5_CKPT, DEVICE)
-        _ = P5MODEL.load_state_dict(state, strict=False)
-        print(f"[P5] checkpoint loaded from {P5_CKPT}")
+        BASE_STATE = load_state_dict(P5_CKPT, DEVICE)
+        print(f"[P5] checkpoint state cached from {P5_CKPT}")
     else:
+        BASE_STATE = None
         print(f"[P5] WARNING: checkpoint not found at {P5_CKPT}")
+
+def create_per_request_base():
+    cfg = create_config_eval()
+    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg).to(DEVICE)
+    model.resize_token_embeddings(TOKENIZER.vocab_size)
+    model.tokenizer = TOKENIZER
+    model.eval()
+    if BASE_STATE is not None:
+        _ = model.load_state_dict(BASE_STATE, strict=False)
+    return model
+
+def attach_soft_prompt(model, tokenizer,
+                       method: str = SOFTPROMPT_METHOD,
+                       num_virtual_tokens: int = SOFTPROMPT_VTOKENS,
+                       init_text: Optional[str] = SOFTPROMPT_INIT_TEXT):
+    if method not in {"prompt_tuning", "p_tuning"}:
+        raise ValueError("SOFTPROMPT_METHOD must be 'prompt_tuning' or 'p_tuning'")
+
+    if method == "prompt_tuning":
+        cfg = PromptTuningConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            num_virtual_tokens=num_virtual_tokens,
+            tokenizer_name_or_path=getattr(tokenizer, "name_or_path", P5_BACKBONE),
+            prompt_tuning_init="TEXT" if init_text else "RANDOM",
+            prompt_tuning_init_text=init_text or "rating prediction",
+        )
+    else:  # p_tuning v2
+        cfg = PromptEncoderConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            num_virtual_tokens=num_virtual_tokens,
+            encoder_hidden_size=128,
+        )
+    peft_model = get_peft_model(model, cfg)
+    peft_model.print_trainable_parameters()
+    return peft_model
 
 def _first_float(text: str, default: float = -1.0) -> float:
     m = re.search(r"-?\d+(\.\d+)?", text.strip())
     return float(m.group(0)) if m else default
 
-def make_p5_prompt(session_id: str, movie_id: str, history: List[Dict]) -> str:
-    hist_str = ", ".join([f"movie_{h['movie_id']}:{float(h['ratings']):.1f}" for h in history[:10]]) or "none"
-    return (
-        f"Task: rating prediction.\n"
-        f"user_session_{session_id} history: {hist_str}\n"
-        f"Question: what rating would user_session_{session_id} give to movie_{movie_id} ?\n"
-        f"Answer:"
-    )
+def make_p5_prompt(session_id: str, movie_id: str) -> str:
+    return f"Which star rating will user_{session_id} give movie_{movie_id}? (0 being lowest and 10 being highest)"
+
+def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
+    """
+    returns list of (src_prompt, tgt_text) where tgt_text is like '4.0'
+    """
+    exs = []
+    for h in history[:HISTORY_MAX_TRAIN]:
+        mid = str(h["movie_id"])
+        rating = float(h["ratings"])
+        src = make_p5_prompt(session_id, mid, history)
+        tgt = f"{rating:.1f}"
+        exs.append((src, tgt))
+    return exs
+
+def finetune_soft_prompt(per_user_model, tokenizer, session_id: str, history: List[Dict],
+                         lr: float = SOFTPROMPT_LR, steps: int = SOFTPROMPT_STEPS, bsz: int = SOFTPROMPT_BSZ):
+    exs = _build_training_examples(session_id, history)
+    if not exs:
+        return
+
+    device = next(per_user_model.parameters()).device
+    per_user_model.train()
+    optim = torch.optim.AdamW([p for p in per_user_model.parameters() if p.requires_grad], lr=lr)
+
+    random.shuffle(exs)
+    step = 0
+    i = 0
+    while step < steps:
+        batch = exs[i:i+bsz]
+        if not batch:
+            i = 0
+            continue
+        i += bsz
+        srcs = [s for s, _ in batch]
+        tgts = [t for _, t in batch]
+
+        # AMP can be further added if needed.
+        enc = tokenizer(srcs, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN).to(device)
+        with tokenizer.as_target_tokenizer():
+            dec = tokenizer(tgts, return_tensors="pt", padding=True, truncation=True, max_length=8).to(device)
+        labels = dec["input_ids"].clone()
+        labels[labels == tokenizer.pad_token_id] = -100
+
+        optim.zero_grad(set_to_none=True)
+        out = per_user_model(**enc, labels=labels)
+        loss = out.loss
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(per_user_model.parameters(), 1.0)
+        optim.step()
+
+        if (step + 1) % 10 == 0:
+            print(f"[softprompt] step {step+1}/{steps} loss={loss.item():.4f}")
+        step += 1
+
+    per_user_model.eval()
 
 @torch.no_grad()
-def p5_score_candidates(session_id: str, history: List[Dict], cand_ids: List[str]) -> List[Tuple[str, float]]:
+def p5_score_candidates_with_model(model, tokenizer, session_id: str, history: List[Dict], cand_ids: List[str]) -> List[Tuple[str, float]]:
     res: List[Tuple[str, float]] = []
     texts = [make_p5_prompt(session_id, cid, history) for cid in cand_ids]
     for s in range(0, len(texts), P5_BATCH):
         batch = texts[s:s+P5_BATCH]
-        enc = TOKENIZER(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
-        enc = {k: v.to(DEVICE) for k,v in enc.items()}
-        out = P5MODEL.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
-        dec = TOKENIZER.batch_decode(out, skip_special_tokens=True)
+        enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
+        enc = {k: v.to(DEVICE) for k, v in enc.items()}
+        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
+        dec = tokenizer.batch_decode(out, skip_special_tokens=True)
         for cid, txt in zip(cand_ids[s:s+P5_BATCH], dec):
             res.append((cid, _first_float(txt, default=-1.0)))
     return res
@@ -139,7 +235,7 @@ def get_history(session_id: str, limit: int = 50) -> List[Dict]:
         .limit(limit).execute()
     return r.data or []
 
-def get_candidates(limit: int = 2000) -> List[str]:
+def get_candidates(limit: int = 10000) -> List[str]:
     r = sb.table("phase2_movies").select("id").limit(limit).execute()
     return [row["id"] for row in (r.data or [])]
 
@@ -227,8 +323,9 @@ class RecReq(BaseModel):
 @app.on_event("startup")
 def _startup():
     load_svd()
-    load_p5()
-    print("[startup] SVD and P5 loaded.")
+    load_tokenizer_once()
+    load_base_state_once()
+    print("[startup] SVD and P5 tokenizer/state cached.")
 
 @app.get("/health")
 def health():
@@ -249,28 +346,32 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
     hist = get_history(req.session_id)
     if not hist:
         raise HTTPException(400, "No rating history for the given session_id.")
-    cand_ids = get_candidates()
-    if not cand_ids:
+    all_candidates = get_candidates()
+    if not all_candidates:
         raise HTTPException(400, "No candidates found for phase2_movies.")
 
-    # 2) SVD Top-10 Scores
+    # 2) SVD Top-100 Scores
     p_u = infer_user_vec_svd(hist)
-    svd_scored = score_candidates_svd(p_u, cand_ids) if p_u is not None else []
-    svd_rows = rows_from_scored(req.session_id, "svd", svd_scored, req.topk_per_model, req.phase)
+    svd_scored_all = score_candidates_svd(p_u, all_candidates) if p_u is not None else []
+    svd_top100 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:100]
+    svd_rows = rows_from_scored(req.session_id, "svd", svd_top100, topk=req.topk_per_model, phase=req.phase)
 
-    # 3) P5 Top-10 Scores
-    p5_scored = p5_score_candidates(req.session_id, hist, cand_ids)
-    p5_rows = rows_from_scored(req.session_id, "p5", p5_scored, req.topk_per_model, req.phase)
+    # 3) P5 soft prompt: create per-user base + attach adapter + short finetuning
+    base = create_per_request_base()
+    per_user = attach_soft_prompt(base, TOKENIZER)
+    finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist)
 
-    # 4) Create a 10-item display order (= top 5 from P5 + top 5 from SVD) - Skip duplicates, interleave the two lists, and use a random start.
-    #    Extract the top list for each model and pass it on
+    # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
+    top100_ids = [mid for (mid, _) in svd_top100]
+    p5_scored_on_100 = p5_score_candidates_with_model(per_user, TOKENIZER, req.session_id, hist, top100_ids)
+    p5_rows = rows_from_scored(req.session_id, "p5", p5_scored_on_100, topk=req.topk_per_model, phase=req.phase)
+
+    # 5) Display order
     p5_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(p5_rows, key=lambda x:x["rank"])][:5]
     svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:5]
     display_seq = build_display_sequence(p5_top_pairs, svd_top_pairs)
-    # display_seq: [(model, movie_id, display_order), ...]
 
-    # 5) Reflect display_order
-    #    Assign display_order to each model’s 10 rows; keep others as None.
+    # 6) Reflect display order
     disp_map = {(m, mid): order for (m, mid, order) in display_seq}
     for r in p5_rows:
         key = ("p5", r["movie_id"])
@@ -281,14 +382,15 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         if key in disp_map:
             r["display_order"] = disp_map[key]
 
-    # Upsert: 20 rows (10 per model); display 10 with order 1..10, rest NULL.
+    # 7) upsert
     upsert_rows(p5_rows)
     upsert_rows(svd_rows)
 
     return {
         "session_id": req.session_id,
         "phase": req.phase,
-        "svd_top_saved": len(svd_rows),
-        "p5_top_saved": len(p5_rows),
+        "svd_top_saved": len(svd_rows),    # 10
+        "p5_top_saved": len(p5_rows),      # 10
+        "svd_top100_size": len(svd_top100),
         "display_sequence": display_seq
     }
