@@ -28,6 +28,32 @@ HISTORY_MAX_TRAIN = 30
 SVD_DIR = os.getenv("SVD_DIR", "/models/svd/v1")  # Directory where SVD files are stored (e.g., V.npy, ...)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# ============= datamaps (movie id mapping for P5) =============
+DATAMAPS_PATH = os.getenv("DATAMAPS_PATH", "/models/p5/datamaps.json")
+ITEM2ID: Dict[str, str] = {}   # external movie_id(str) -> internal item_id(str)
+ID2ITEM: Dict[str, str] = {}   # internal item_id(str) -> external movie_id(str)
+
+def load_datamaps():
+    global ITEM2ID, ID2ITEM
+    with open(DATAMAPS_PATH, "r") as f:
+        dm = json.load(f)
+    ITEM2ID = dm.get("item2id", {})
+    ID2ITEM = {v: k for k, v in ITEM2ID.items()}
+    print(f"[datamaps] loaded: item2id size={len(ITEM2ID)} from {DATAMAPS_PATH}")
+
+def map_movie_for_p5(ext_mid: str) -> Optional[str]:
+    return ITEM2ID.get(str(ext_mid))
+
+def map_history_for_p5(history: List[Dict], max_n: int = HISTORY_MAX_TRAIN) -> List[Dict]:
+    out = []
+    for h in history[:max_n]:
+        ext = str(h.get("movie_id"))
+        internal = map_movie_for_p5(ext)
+        if internal is None:
+            continue
+        out.append({"movie_id": internal, "ratings": float(h.get("ratings", 0.0))})
+    return out
+
 # ===================== Client / App =====================
 sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 app = FastAPI()
@@ -213,17 +239,18 @@ def finetune_soft_prompt(per_user_model, tokenizer, session_id: str, history: Li
     per_user_model.eval()
 
 @torch.no_grad()
-def p5_score_candidates_with_model(model, tokenizer, session_id: str, history: List[Dict], cand_ids: List[str]) -> List[Tuple[str, float]]:
-    res: List[Tuple[str, float]] = []
-    texts = [make_p5_prompt(session_id, cid, history) for cid in cand_ids]
+def p5_score_candidates_mapped(model, tokenizer, session_id: str,
+                               history_mapped: List[Dict], mapped_ids: List[str]) -> List[float]:
+    res: List[float] = []
+    texts = [make_p5_prompt(session_id, mid, history_mapped) for mid in mapped_ids]
     for s in range(0, len(texts), P5_BATCH):
         batch = texts[s:s+P5_BATCH]
         enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
         enc = {k: v.to(DEVICE) for k, v in enc.items()}
         out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
         dec = tokenizer.batch_decode(out, skip_special_tokens=True)
-        for cid, txt in zip(cand_ids[s:s+P5_BATCH], dec):
-            res.append((cid, _first_float(txt, default=-1.0)))
+        for txt in dec:
+            res.append(_first_float(txt, default=-1.0))
     return res
 
 # ===================== Supabase I/O =====================
@@ -325,6 +352,7 @@ def _startup():
     load_svd()
     load_tokenizer_once()
     load_base_state_once()
+    load_datamaps()
     print("[startup] SVD and P5 tokenizer/state cached.")
 
 @app.get("/health")
@@ -357,13 +385,26 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
     svd_rows = rows_from_scored(req.session_id, "svd", svd_top100, topk=req.topk_per_model, phase=req.phase)
 
     # 3) P5 soft prompt: create per-user base + attach adapter + short finetuning
+    hist_mapped = map_history_for_p5(hist, max_n=HISTORY_MAX_TRAIN) # mapping according to datamaps
     base = create_per_request_base()
     per_user = attach_soft_prompt(base, TOKENIZER)
-    finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist)
+    finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist_mapped)
 
     # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
-    top100_ids = [mid for (mid, _) in svd_top100]
-    p5_scored_on_100 = p5_score_candidates_with_model(per_user, TOKENIZER, req.session_id, hist, top100_ids)
+    pairs = []  # [(ext_mid, internal_id)]
+    for ext_mid, _ in svd_top100:
+        internal = map_movie_for_p5(ext_mid)
+        if internal is not None:
+            pairs.append((ext_mid, internal))
+    
+    if pairs:
+        mapped_ids = [internal for _, internal in pairs]
+        p5_scores = p5_score_candidates_mapped(per_user, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
+        # Pair score with external movie_id
+        p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
+    else:
+        p5_scored_on_100 = []
+        
     p5_rows = rows_from_scored(req.session_id, "p5", p5_scored_on_100, topk=req.topk_per_model, phase=req.phase)
 
     # 5) Display order
