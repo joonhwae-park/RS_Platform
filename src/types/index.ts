@@ -29,6 +29,9 @@ export interface QuestionnaireData {
   gender?: string;
   ageRange?: string;
   attentionCheck: string;
+  serendipityAttitude: string;
+  noveltyAttitude: string;
+  diversityAttitude: string;
   nationality?: string;
   occupation?: string;
   additionalComments?: string;
