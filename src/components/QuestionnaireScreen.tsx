@@ -16,6 +16,9 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
     riskAversion: '',
     movieExpertise: '',
     attentionCheck: '',
+    serendipityAttitude: '',
+    noveltyAttitude: '',
+    diversityAttitude: '',
     gender: '',
     ageRange: '',
     nationality: '',
@@ -85,6 +88,16 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
     '7'
   ];
 
+  const attitudeOptions = [
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7'
+  ];
+
   const handleStreamingServiceChange = (service: string, checked: boolean) => {
     if (checked) {
       setFormData(prev => ({
@@ -129,6 +142,18 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
 
     if (!formData.movieExpertise) {
       newErrors.push('Movie expertise question is required');
+    }
+
+    if (!formData.serendipityAttitude) {
+      newErrors.push('Serendipity attitude question is required');
+    }
+
+    if (!formData.noveltyAttitude) {
+      newErrors.push('Novelty attitude question is required');
+    }
+
+    if (!formData.diversityAttitude) {
+      newErrors.push('Diversity attitude question is required');
     }
 
     if (!formData.attentionCheck) {
@@ -307,6 +332,72 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                 ))}
               </div>
             </div>
+
+            {/* Serendipity Attitude */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3">
+                I enjoy discovering movies that are unexpected and surprising. (1-Strongly disagree, 7-Strongly agree) *
+              </label>
+              <div className="grid grid-cols-7 gap-2">
+                {attitudeOptions.map(option => (
+                  <label key={option} className="flex flex-col items-center">
+                    <input
+                      type="radio"
+                      name="serendipityAttitude"
+                      value={option}
+                      checked={formData.serendipityAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude: e.target.value }))}
+                      className="mb-1 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-gray-300 text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Novelty Attitude */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3">
+                I prefer to watch movies that are new and unfamiliar to me. (1-Strongly disagree, 7-Strongly agree) *
+              </label>
+              <div className="grid grid-cols-7 gap-2">
+                {attitudeOptions.map(option => (
+                  <label key={option} className="flex flex-col items-center">
+                    <input
+                      type="radio"
+                      name="noveltyAttitude"
+                      value={option}
+                      checked={formData.noveltyAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, noveltyAttitude: e.target.value }))}
+                      className="mb-1 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-gray-300 text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Diversity Attitude */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3">
+                I like movie recommendations that include a variety of different genres and styles. (1-Strongly disagree, 7-Strongly agree) *
+              </label>
+              <div className="grid grid-cols-7 gap-2">
+                {attitudeOptions.map(option => (
+                  <label key={option} className="flex flex-col items-center">
+                    <input
+                      type="radio"
+                      name="diversityAttitude"
+                      value={option}
+                      checked={formData.diversityAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude: e.target.value }))}
+                      className="mb-1 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-gray-300 text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Optional Questions */}
@@ -335,16 +426,17 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
 
             {/* Age Range */}
             <div className="mb-6">
-              <label className="block text-amber-400 font-medium mb-3">Age (Optional)</label>
-              <input
-                type="number"
-                min="18"
-                max="100"
+              <label className="block text-amber-400 font-medium mb-3">Age Range (Optional)</label>
+              <select
                 value={formData.ageRange || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, ageRange: e.target.value }))}
-                placeholder="Enter your age"
                 className="w-full bg-gray-800 border border-gray-600 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
+              >
+                <option value="">Select age range</option>
+                {ageRangeOptions.map(range => (
+                  <option key={range} value={range}>{range}</option>
+                ))}
+              </select>
             </div>
 
 
