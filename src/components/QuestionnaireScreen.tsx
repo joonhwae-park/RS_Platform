@@ -245,6 +245,28 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               </div>
             </div>
 
+            {/* Movie Expertise */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3">
+                How knowledgeable are you about movies in general? (1-Not at all knowledgeable, 7-Extremely knowledgeable) *
+              </label>
+              <div className="grid grid-cols-7 gap-2">
+                {expertiseOptions.map(option => (
+                  <label key={option} className="flex flex-col items-center">
+                    <input
+                      type="radio"
+                      name="movieExpertise"
+                      value={option}
+                      checked={formData.movieExpertise === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, movieExpertise: e.target.value }))}
+                      className="mb-1 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-gray-300 text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Attention Check */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
@@ -311,32 +333,11 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               </div>
             </div>
 
-            {/* Movie Expertise */}
-            <div className="mb-6">
-              <label className="block text-amber-400 font-medium mb-3">
-                How knowledgeable are you about movies in general? (1-Not at all knowledgeable, 7-Extremely knowledgeable) *
-              </label>
-              <div className="grid grid-cols-7 gap-2">
-                {expertiseOptions.map(option => (
-                  <label key={option} className="flex flex-col items-center">
-                    <input
-                      type="radio"
-                      name="movieExpertise"
-                      value={option}
-                      checked={formData.movieExpertise === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, movieExpertise: e.target.value }))}
-                      className="mb-1 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-gray-300 text-sm">{option}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
 
             {/* Serendipity Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I enjoy discovering movies that are unexpected and surprising. (1-Strongly disagree, 7-Strongly agree) *
+                I enjoy receiving recommendations that are unexpected and surprising. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
@@ -358,7 +359,7 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
             {/* Novelty Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I prefer to watch movies that are new and unfamiliar to me. (1-Strongly disagree, 7-Strongly agree) *
+                I prefer recommendations that are new and unfamiliar to me. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
@@ -380,7 +381,7 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
             {/* Diversity Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I like movie recommendations that include a variety of different genres and styles. (1-Strongly disagree, 7-Strongly agree) *
+                I like recommendations that include a variety of different genres and styles. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
