@@ -91,7 +91,7 @@ export const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
             <ArrowRight size={24} />
           </button>
           <p className="text-gray-400 text-sm mt-4">
-            This study takes approximately 40-60 minutes to complete
+            This study takes approximately 30 minutes to complete
           </p>
         </div>
       </div>
