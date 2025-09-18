@@ -8,7 +8,6 @@ import { IntroScreen } from './components/IntroScreen';
 import { Phase2CompletionModal } from './components/Phase2CompletionModal';
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 import { recommenderService } from './services/recommenderService';
-import { useMouseTracking } from './hooks/useMouseTracking';
 import { supabase } from './lib/supabase';
 import { Film, Loader2, AlertCircle } from 'lucide-react';
 
@@ -75,9 +74,6 @@ function App() {
   const [pendingRatings, setPendingRatings] = useState<Map<string, any>>(new Map());
   const [currentMoviesPhase, setCurrentMoviesPhase] = useState<'initial' | 'recommended' | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
-
-  // Initialize mouse tracking
-  const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
 
   // Load session from localStorage on app start
   useEffect(() => {
@@ -670,9 +666,6 @@ function App() {
 
   const handleQuestionnaireComplete = async (questionnaireData: QuestionnaireData) => {
     await recordPhaseTransition('questionnaire', 'complete');
-    
-    // Save any remaining mouse events before completing
-    saveRemainingEvents();
     
     // Save questionnaire data to database
     if (sessionId && !sessionId.startsWith('local_')) {
