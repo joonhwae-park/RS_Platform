@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
 COPY p5.yml /tmp/p5.yml
 RUN sed -i '/^prefix:/d' /tmp/p5.yml
 
-# p5 yml (formerly named as detic)
-RUN micromamba create -y -n detic -f /tmp/p5.yml && \
+# p5 yml 
+RUN micromamba create -y -n p5 -f /tmp/p5.yml && \
     micromamba clean -a -y
 
 ENV MAMBA_DOCKERFILE_ACTIVATE=1
