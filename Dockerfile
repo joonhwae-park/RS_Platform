@@ -15,7 +15,7 @@ RUN micromamba create -y -n p5 -f /tmp/p5.yml && \
 ENV MAMBA_DOCKERFILE_ACTIVATE=1
 SHELL ["/bin/bash", "-lc"]
 
-RUN git clone https://github.com/jeykigung/P5.git /workspace/P5-main
+RUN git clone https://github.com/joonhwae-park/P5_mod.git /workspace/P5-main
 ENV P5_ROOT=/workspace/P5-main
 WORKDIR /workspace
 
@@ -26,4 +26,4 @@ COPY app.py /workspace/app.py
 # Cloud Run Port
 EXPOSE 8080
 
-ENTRYPOINT ["micromamba","run","-n","detic","--no-capture-output","uvicorn","app:app","--host","0.0.0.0","--port","8080"]
+ENTRYPOINT ["micromamba","run","-n","p5","--no-capture-output","uvicorn","app:app","--host","0.0.0.0","--port","8080"]
