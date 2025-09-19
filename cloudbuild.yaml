@@ -1,6 +1,6 @@
 substitutions:
   _REGION: "us-central1"
-  _REPO:   "recs-api
+  _REPO:   "recs-api"
   _IMAGE:  "recs-api"
 
 steps:
