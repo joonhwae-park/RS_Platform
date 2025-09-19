@@ -30,10 +30,7 @@ WORKDIR /workspace
 
 COPY app.py /workspace/app.py
 
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
 # Cloud Run Port
 EXPOSE 8080
-ENTRYPOINT ["/start.sh"]
-#ENTRYPOINT ["micromamba","run","-n","p5","--no-capture-output","uvicorn","app:app","--host","0.0.0.0","--port","8080"]
+
+ENTRYPOINT ["micromamba","run","-n","p5","uvicorn","app:app","--host","0.0.0.0","--port","8080"]
