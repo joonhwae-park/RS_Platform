@@ -20,11 +20,13 @@ RUN micromamba run -n p5 python -m pip install --upgrade pip && \
       --index-url https://download.pytorch.org/whl/cu117 \
       torch==2.0.1+cu117 torchvision==0.15.2+cu117
 
+RUN micromamba run -n p5 pip install --no-cache-dir \
+      fastapi "uvicorn[standard]" supabase \
+      peft==0.6.2 transformers==4.36.2 accelerate==0.24.1 sentencepiece==0.1.96 scikit-learn==1.6.1
+
 RUN git clone https://github.com/joonhwae-park/P5_mod.git /workspace/P5-main
 ENV P5_ROOT=/workspace/P5-main
 WORKDIR /workspace
-
-RUN pip install --no-cache-dir fastapi uvicorn[standard] supabase
 
 COPY app.py /workspace/app.py
 
