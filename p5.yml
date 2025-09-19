@@ -1,4 +1,4 @@
-name: detic
+name: p5
 channels:
   - conda-forge
   - defaults
