@@ -15,6 +15,11 @@ RUN micromamba create -y -n p5 -f /tmp/p5.yml && \
 ENV MAMBA_DOCKERFILE_ACTIVATE=1
 SHELL ["/bin/bash", "-lc"]
 
+RUN micromamba run -n p5 python -m pip install --upgrade pip && \
+    micromamba run -n p5 pip install \
+      --index-url https://download.pytorch.org/whl/cu117 \
+      torch==2.0.1+cu117 torchvision==0.15.2+cu117
+
 RUN git clone https://github.com/joonhwae-park/P5_mod.git /workspace/P5-main
 ENV P5_ROOT=/workspace/P5-main
 WORKDIR /workspace
