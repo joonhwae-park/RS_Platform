@@ -10,6 +10,7 @@ import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 import { recommenderService } from './services/recommenderService';
 import { supabase } from './lib/supabase';
 import { Film, Loader2, AlertCircle } from 'lucide-react';
+import { useMouseTracking } from './hooks/useMouseTracking';
 
 // Session persistence utilities
 const SESSION_STORAGE_KEY = 'cinerate_session';
@@ -74,6 +75,9 @@ function App() {
   const [pendingRatings, setPendingRatings] = useState<Map<string, any>>(new Map());
   const [currentMoviesPhase, setCurrentMoviesPhase] = useState<'initial' | 'recommended' | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
+
+  // Mouse tracking
+  const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
 
   // Load session from localStorage on app start
   useEffect(() => {
@@ -639,14 +643,27 @@ function App() {
   };
 
   const handleGetRecommendations = async () => {
+    console.log('=== GETTING RECOMMENDATIONS ===');
+    console.log('Session ID:', sessionId);
+    console.log('API URL configured:', import.meta.env.VITE_RECOMMENDATION_API_URL);
+    
     // First, trigger recommendation generation via the API
     if (sessionId && !sessionId.startsWith('local_')) {
       console.log('Triggering recommendation generation...');
+      
+      // Check API health first
+      const isHealthy = await recommenderService.checkHealth();
+      console.log('API health check:', isHealthy);
+      
       const success = await recommenderService.triggerRecommendationGeneration(sessionId);
       
       if (!success) {
-        console.warn('Recommendation generation failed, proceeding with fallback');
+        console.warn('Recommendation generation failed or API not available, proceeding with fallback');
+        // Show user notification about fallback
+        console.log('Using fallback recommendations due to API unavailability');
       }
+    } else {
+      console.log('Using local session or no session, skipping API call');
     }
     
     await recordPhaseTransition('choice', 'recommendation');
@@ -676,6 +693,9 @@ function App() {
 
   const handleQuestionnaireComplete = async (questionnaireData: QuestionnaireData) => {
     await recordPhaseTransition('questionnaire', 'complete');
+    
+    // Save any remaining mouse events before completing
+    await saveRemainingEvents();
     
     // Save questionnaire data to database
     if (sessionId && !sessionId.startsWith('local_')) {
