@@ -19,6 +19,9 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
     serendipityAttitude: '',
     noveltyAttitude: '',
     diversityAttitude: '',
+    noveltyAttitude2: '',
+    diversityAttitude2: '',
+    serendipityAttitude2: '',
     gender: '',
     ageRange: '',
     nationality: '',
@@ -154,6 +157,18 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
 
     if (!formData.diversityAttitude) {
       newErrors.push('Diversity attitude question is required');
+    }
+
+    if (!formData.noveltyAttitude2) {
+      newErrors.push('Second novelty attitude question is required');
+    }
+
+    if (!formData.diversityAttitude2) {
+      newErrors.push('Second diversity attitude question is required');
+    }
+
+    if (!formData.serendipityAttitude2) {
+      newErrors.push('Second serendipity attitude question is required');
     }
 
     if (!formData.attentionCheck) {
@@ -299,10 +314,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="opennessToExperience"
+                      name="diversityAttitude"
                       value={option}
-                      checked={formData.opennessToExperience === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, opennessToExperience: e.target.value }))}
+                      checked={formData.diversityAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>
@@ -321,10 +336,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="riskAversion"
+                      name="diversityAttitude2"
                       value={option}
-                      checked={formData.riskAversion === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, riskAversion: e.target.value }))}
+                      checked={formData.diversityAttitude2 === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude2: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>
@@ -344,10 +359,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="serendipityAttitude"
+                      name="noveltyAttitude"
                       value={option}
-                      checked={formData.serendipityAttitude === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude: e.target.value }))}
+                      checked={formData.noveltyAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, noveltyAttitude: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>
@@ -366,10 +381,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="noveltyAttitude"
+                      name="noveltyAttitude2"
                       value={option}
-                      checked={formData.noveltyAttitude === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, noveltyAttitude: e.target.value }))}
+                      checked={formData.noveltyAttitude2 === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, noveltyAttitude2: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>
@@ -390,8 +405,8 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                       type="radio"
                       name="diversityAttitude"
                       value={option}
-                      checked={formData.diversityAttitude === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude: e.target.value }))}
+                     checked={formData.serendipityAttitude === option}
+                     onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>
@@ -410,10 +425,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="diversityAttitude"
+                     name="serendipityAttitude2"
                       value={option}
-                      checked={formData.diversityAttitude === option}
-                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude: e.target.value }))}
+                     checked={formData.serendipityAttitude2 === option}
+                     onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude2: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>

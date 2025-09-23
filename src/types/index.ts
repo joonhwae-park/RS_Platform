@@ -32,6 +32,9 @@ export interface QuestionnaireData {
   serendipityAttitude: string;
   noveltyAttitude: string;
   diversityAttitude: string;
+  noveltyAttitude2: string;
+  diversityAttitude2: string;
+  serendipityAttitude2: string;
   nationality?: string;
   occupation?: string;
   additionalComments?: string;

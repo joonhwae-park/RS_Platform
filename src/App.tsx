@@ -705,20 +705,17 @@ function App() {
           .insert({
             session_id: sessionId,
             movie_watching_frequency: questionnaireData.movieWatchingFrequency,
-            streaming_services: questionnaireData.streamingServices,
-            primary_streaming_service: questionnaireData.primaryStreamingService,
             movie_genre_preferences: questionnaireData.movieGenrePreferences,
-            openness_to_experience: questionnaireData.opennessToExperience,
-            risk_aversion: questionnaireData.riskAversion,
             movie_expertise: questionnaireData.movieExpertise,
             serendipity_attitude: questionnaireData.serendipityAttitude,
             novelty_attitude: questionnaireData.noveltyAttitude,
             diversity_attitude: questionnaireData.diversityAttitude,
+            novelty_attitude2: questionnaireData.noveltyAttitude2,
+            diversity_attitude2: questionnaireData.diversityAttitude2,
+            serendipity_attitude2: questionnaireData.serendipityAttitude2,
             attention_check: questionnaireData.attentionCheck,
             gender: questionnaireData.gender,
             age_range: questionnaireData.ageRange,
-            nationality: questionnaireData.nationality,
-            occupation: questionnaireData.occupation,
             additional_comments: questionnaireData.additionalComments,
             email: questionnaireData.email
           });
