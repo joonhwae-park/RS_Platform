@@ -74,7 +74,7 @@ def load_svd():
                 else np.zeros(len(ITEM_IDS), dtype="float32")
     MU = json.load(open(f"{SVD_DIR}/global_mean.json")).get("mu", 7.31) if os.path.exists(f"{SVD_DIR}/global_mean.json") else 7.31
     REG = json.load(open(f"{SVD_DIR}/lambda.json")).get("reg", 0.05) if os.path.exists(f"{SVD_DIR}/lambda.json") else 0.05
-    IDX = {mid: i for i, mid in enumerate(ITEM_IDS)}
+    IDX = {str(mid): i for i, mid in enumerate(ITEM_IDS)}
 
 def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
     idxs, y = [], []
@@ -264,7 +264,7 @@ def get_history(session_id: str, limit: int = 50) -> List[Dict]:
 
 def get_candidates(limit: int = 10000) -> List[str]:
     r = sb.table("phase2_movies").select("id").limit(limit).execute()
-    return [row["id"] for row in (r.data or [])]
+    return [str(row["id"]) for row in (r.data or [])]
 
 # ====== display_order ======
 def build_display_sequence(p5_top: List[Tuple[str, float]],
