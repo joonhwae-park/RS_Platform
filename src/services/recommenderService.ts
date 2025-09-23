@@ -17,6 +17,28 @@ export interface RecommenderConfig {
 
 export class RecommenderService {
   /**
+   * Trigger recommendation generation via the Cloud Run API
+   */
+  async triggerRecommendationGeneration(sessionId: string): Promise<boolean> {
+    try {
+      console.log('Triggering recommendation generation for session:', sessionId);
+      
+      const result = await recommendationAPI.generateRecommendations(sessionId);
+      
+      if (result) {
+        console.log('Recommendations generated successfully:', result);
+        return true;
+      } else {
+        console.warn('Failed to generate recommendations via API');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error triggering recommendation generation:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get recommendations from the recommendations table in Supabase
    */
   async generateRecommendations(
@@ -101,5 +123,6 @@ export class RecommenderService {
   }
 }
 
+import { recommendationAPI } from './recommendationAPI';
 import { supabase } from '../lib/supabase';
 export const recommenderService = new RecommenderService();

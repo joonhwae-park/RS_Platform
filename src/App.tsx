@@ -639,6 +639,16 @@ function App() {
   };
 
   const handleGetRecommendations = async () => {
+    // First, trigger recommendation generation via the API
+    if (sessionId && !sessionId.startsWith('local_')) {
+      console.log('Triggering recommendation generation...');
+      const success = await recommenderService.triggerRecommendationGeneration(sessionId);
+      
+      if (!success) {
+        console.warn('Recommendation generation failed, proceeding with fallback');
+      }
+    }
+    
     await recordPhaseTransition('choice', 'recommendation');
     setPhase('recommendation');
     await updateSessionPhase('recommendation');
