@@ -1,3 +1,43 @@
+import threading
+READY = {"ok": False, "msg": "booting"}
+
+def _heavy_init():
+    try:
+        # ENV Validity check
+        required = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"]
+        missing = [k for k in required if not os.getenv(k)]
+        if missing:
+            raise RuntimeError(f"Missing env: {', '.join(missing)}")
+        
+        load_tokenizer_once()
+        load_base_state_once()
+
+        READY.update(ok=True, msg="ready")
+    except Exception as e:
+        READY.update(ok=False, msg=f"init_error: {e}")
+
+@app.on_event("startup")
+def _startup():
+    threading.Thread(target=_heavy_init, daemon=True).start()
+
+@app.get("/health")
+def health():
+    return {
+        "ok": READY["ok"],
+        "status": READY["msg"],
+        "device": DEVICE,
+        "p5_ckpt": P5_CKPT,
+        "svd_dir": SVD_DIR,
+        "n_items": int(len(ITEM_IDS) if ITEM_IDS is not None else 0)
+    }
+
+
+@app.post("/recommend")
+def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
+    if not READY["ok"]:
+        raise HTTPException(503, "warming up")
+
+
 import os, sys, re, json, torch, numpy as np, random
 from typing import List, Dict, Tuple, Optional
 from fastapi import FastAPI, HTTPException, Header
