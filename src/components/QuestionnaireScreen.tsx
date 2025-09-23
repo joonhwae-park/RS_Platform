@@ -289,10 +289,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               </div>
             </div>
 
-            {/* Openness to Experience */}
+            {/* Diversity Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I enjoy trying new and different things. (1-Strongly disagree, 7-Strongly agree) *
+                I often prefer watching similar movies. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {opennessOptions.map(option => (
@@ -311,10 +311,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               </div>
             </div>
 
-            {/* Risk Aversion */}
+            {/* Diversity Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I prefer predictable and familiar experiences over unexpected ones. (1-Strongly disagree, 7-Strongly agree) *
+                Compared to my peers, I watch more diverse movies. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {riskAversionOptions.map(option => (
@@ -334,10 +334,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
             </div>
 
 
-            {/* Serendipity Attitude */}
+            {/* Novelty Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I enjoy receiving recommendations that are unexpected and surprising. (1-Strongly disagree, 7-Strongly agree) *
+                I often prefer watching novel movies. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
@@ -359,7 +359,7 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
             {/* Novelty Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I prefer recommendations that are new and unfamiliar to me. (1-Strongly disagree, 7-Strongly agree) *
+                Compared to my peers, I often watch conventional movies. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
@@ -378,10 +378,32 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
               </div>
             </div>
 
-            {/* Diversity Attitude */}
+            {/* Serendipity Attitude */}
             <div className="mb-6">
               <label className="block text-amber-400 font-medium mb-3">
-                I like recommendations that include a variety of different genres and styles. (1-Strongly disagree, 7-Strongly agree) *
+                I often prefer watching unexpected movies. (1-Strongly disagree, 7-Strongly agree) *
+              </label>
+              <div className="grid grid-cols-7 gap-2">
+                {attitudeOptions.map(option => (
+                  <label key={option} className="flex flex-col items-center">
+                    <input
+                      type="radio"
+                      name="diversityAttitude"
+                      value={option}
+                      checked={formData.diversityAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, diversityAttitude: e.target.value }))}
+                      className="mb-1 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-gray-300 text-sm">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Serendipity Attitude */}
+            <div className="mb-6">
+              <label className="block text-amber-400 font-medium mb-3">
+                Compared to my peers, I often watch movies that are easier to discover. (1-Strongly disagree, 7-Strongly agree) *
               </label>
               <div className="grid grid-cols-7 gap-2">
                 {attitudeOptions.map(option => (
