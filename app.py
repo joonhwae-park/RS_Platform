@@ -65,7 +65,7 @@ SOFTPROMPT_BSZ = int(os.getenv("SOFTPROMPT_BSZ", "8"))
 SOFTPROMPT_INIT_TEXT = os.getenv("SOFTPROMPT_INIT_TEXT", "rating prediction")
 HISTORY_MAX_TRAIN = 30
 
-SVD_DIR = os.getenv("SVD_DIR", "/models/svd/v1")  # Directory where SVD files are stored (e.g., V.npy, ...)
+SVD_DIR = os.getenv("SVD_DIR", "/models/svd")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ============= datamaps (movie id mapping for P5) =============
