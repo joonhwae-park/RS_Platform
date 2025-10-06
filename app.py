@@ -49,7 +49,7 @@ SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 P5_ROOT = os.getenv("P5_ROOT", "/workspace/P5-main")
-P5_CKPT = os.getenv("P5_CKPT", "/models/p5/checkpoint.pth")
+P5_CKPT = os.getenv("P5_CKPT", "/models/p5/mvt_aug_epoch10.pth")
 P5_BACKBONE = os.getenv("P5_BACKBONE", "t5-small")
 P5_MAX_LEN = int(os.getenv("P5_MAX_LEN", "256"))
 P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "6"))
