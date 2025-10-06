@@ -69,7 +69,7 @@ SVD_DIR = os.getenv("SVD_DIR", "/models/svd/v1")  # Directory where SVD files ar
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ============= datamaps (movie id mapping for P5) =============
-DATAMAPS_PATH = os.getenv("DATAMAPS_PATH", "/models/p5/datamaps.json")
+DATAMAPS_PATH = os.getenv("DATAMAPS_PATH", "/models/p5/datamaps_64.json")
 ITEM2ID: Dict[str, str] = {}   # external movie_id(str) -> internal item_id(str)
 ID2ITEM: Dict[str, str] = {}   # internal item_id(str) -> external movie_id(str)
 
