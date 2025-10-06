@@ -144,7 +144,7 @@ def score_candidates_svd(p_u: np.ndarray, cand_ids: List[str]) -> List[Tuple[str
     scores = (V[ix, :] @ p_u).astype("float32")
     return [(cid, float(s)) for (cid, _), s in zip(pairs, scores)]
 
-# ===================== P5 (Similar with test_ml1m_small.py) =====================
+# ===================== P5 =========================
 sys.path.extend([P5_ROOT, os.path.join(P5_ROOT, "src")])
 from transformers import T5Config
 from src.tokenization import P5Tokenizer
@@ -153,7 +153,7 @@ from src.utils import load_state_dict
 
 from peft import get_peft_model, PromptTuningConfig, PromptEncoderConfig, TaskType
 
-TOKENIZER, BASE_STATE = None, None  # 전역 캐시(디스크 I/O 최소화)
+TOKENIZER, BASE_STATE = None, None
 
 def create_config_eval():
     cfg = T5Config.from_pretrained(P5_BACKBONE)
