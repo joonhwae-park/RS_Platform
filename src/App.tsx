@@ -96,7 +96,7 @@ function App() {
         
         // Load appropriate movies based on the current phase
         if (savedSession.currentMoviesPhase) {
-          await fetchMovies(savedSession.currentMoviesPhase);
+          await fetchMovies(savedSession.currentMoviesPhase, savedSession.sessionId);
         }
       } else {
         console.log('No saved session found or session is at intro phase, starting fresh');
@@ -150,8 +150,8 @@ function App() {
     console.log('Starting app initialization');
     setIsInitializing(true);
     try {
-      await initializeSession();
-      await fetchMovies('initial');
+      const newSessionId = await initializeSession();
+      await fetchMovies('initial', newSessionId);
       console.log('App initialization completed successfully');
     } catch (error) {
       console.error('Error initializing app:', error);
@@ -246,6 +246,8 @@ function App() {
     const randomMinimum = possibleMinimums[Math.floor(Math.random() * possibleMinimums.length)];
     setMinimumRatingsRequired(randomMinimum);
     
+    let newSessionId: string;
+    
     try {
       console.log('Inserting session into database');
       const { data, error } = await supabase
@@ -266,29 +268,34 @@ function App() {
       }
       
       if (data && data.id) {
-        setSessionId(data.id);
+        newSessionId = data.id;
+        setSessionId(newSessionId);
         console.log('Database session created:', data.id, 'Minimum required:', randomMinimum);
       } else {
         // Use local session if database fails
-        const localSessionId = `local_${Date.now()}`;
-        setSessionId(localSessionId);
-        console.log('Using local session:', localSessionId, 'Minimum required:', randomMinimum);
+        newSessionId = `local_${Date.now()}`;
+        setSessionId(newSessionId);
+        console.log('Using local session:', newSessionId, 'Minimum required:', randomMinimum);
       }
       setSessionStartTime(Date.now());
     } catch (error) {
       console.error('Error creating session:', error);
       // Continue with local session if database fails
-      const localSessionId = `local_${Date.now()}`;
-      setSessionId(localSessionId);
-      console.log('Using local session due to error:', localSessionId, 'Minimum required:', randomMinimum);
+      newSessionId = `local_${Date.now()}`;
+      setSessionId(newSessionId);
+      console.log('Using local session due to error:', newSessionId, 'Minimum required:', randomMinimum);
     }
+    
+    return newSessionId;
   };
 
-  const fetchMovies = async (type: 'initial' | 'recommended') => {
+  const fetchMovies = async (type: 'initial' | 'recommended', providedSessionId?: string) => {
+    const currentSessionId = providedSessionId || sessionId;
+    
     console.log('=== FETCH MOVIES START ===');
     console.log('Fetching movies of type:', type);
     console.log('Current phase:', phase);
-    console.log('Session ID:', sessionId);
+    console.log('Session ID:', currentSessionId);
     
     setLoadingMovies(true);
     setErrorMovies(null);
@@ -335,11 +342,11 @@ function App() {
       } else {
         console.log('=== FETCHING RECOMMENDED MOVIES ===');
         // Use recommender algorithm to get personalized recommendations
-        if (sessionId) {
-          console.log('Requesting recommendations for session:', sessionId);
+        if (currentSessionId) {
+          console.log('Requesting recommendations for session:', currentSessionId);
           console.log('Current ratings count:', ratings.length);
           
-          const recommendedIds = await recommenderService.generateRecommendations(sessionId, ratings);
+          const recommendedIds = await recommenderService.generateRecommendations(currentSessionId, ratings);
           
           console.log('Received recommended IDs:', recommendedIds);
           
@@ -365,7 +372,7 @@ function App() {
               console.log('Movie titles:', sortedMovies.map(m => m.title));
             
               // Log the recommendation for analysis
-              await recommenderService.logRecommendation(sessionId, recommendedIds);
+              await recommenderService.logRecommendation(currentSessionId, recommendedIds);
             
               // Update poster URLs to use Supabase storage
               const moviesWithStoragePoster = sortedMovies.map(movie => ({
@@ -412,7 +419,7 @@ function App() {
           setCurrentMoviesPhase('recommended');
         } else {
           console.error('No session ID available for recommendations');
-          setErrorMovies('Session not found. Please refresh the page and try again.');
+          throw new Error('No session ID available for recommendations');
         }
       }
     } catch (error) {
