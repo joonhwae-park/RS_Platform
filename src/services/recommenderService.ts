@@ -22,6 +22,7 @@ export class RecommenderService {
   async triggerRecommendationGeneration(sessionId: string): Promise<boolean> {
     try {
       console.log('Triggering recommendation generation for session:', sessionId);
+      console.log('Environment check - API URL configured:', !!import.meta.env.VITE_RECOMMENDATION_API_URL);
       
       const result = await recommendationAPI.generateRecommendations(sessionId);
       
@@ -105,6 +106,10 @@ export class RecommenderService {
       console.error('Error getting fallback recommendations:', error);
       return [];
     }
+  }
+
+  async checkHealth(): Promise<boolean> {
+    return await recommendationAPI.checkHealth();
   }
   async logRecommendation(sessionId: string, recommendedMovieIds: number[]) {
     try {

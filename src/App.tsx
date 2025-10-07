@@ -287,9 +287,8 @@ function App() {
   const fetchMovies = async (type: 'initial' | 'recommended') => {
     console.log('=== FETCH MOVIES START ===');
     console.log('Fetching movies of type:', type);
-    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
     console.log('Current phase:', phase);
-    console.log('Cache buster timestamp:', Date.now());
+    console.log('Session ID:', sessionId);
     
     setLoadingMovies(true);
     setErrorMovies(null);
@@ -330,21 +329,22 @@ function App() {
         }));
         
         console.log('Movies with updated posters:', moviesWithStoragePoster.length);
-        console.log('Sample movie:', moviesWithStoragePoster[0]);
         setCurrentMovies(moviesWithStoragePoster);
         setCurrentMoviesPhase('initial');
         console.log('=== INITIAL MOVIES SET SUCCESSFULLY ===');
       } else {
+        console.log('=== FETCHING RECOMMENDED MOVIES ===');
         // Use recommender algorithm to get personalized recommendations
         if (sessionId) {
           console.log('Requesting recommendations for session:', sessionId);
-          console.log('Current ratings for recommendation:', ratings);
+          console.log('Current ratings count:', ratings.length);
           
           const recommendedIds = await recommenderService.generateRecommendations(sessionId, ratings);
           
           console.log('Received recommended IDs:', recommendedIds);
           
           if (recommendedIds.length > 0) {
+            console.log('Fetching movie details for recommended IDs...');
             const { data, error } = await supabase
               .from('phase2_movies')
               .select('*')
@@ -362,6 +362,7 @@ function App() {
               ).filter(Boolean);
               
               console.log('Recommended movies sorted:', sortedMovies.length);
+              console.log('Movie titles:', sortedMovies.map(m => m.title));
             
               // Log the recommendation for analysis
               await recommenderService.logRecommendation(sessionId, recommendedIds);
@@ -372,7 +373,7 @@ function App() {
                 poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
               }));
             
-              console.log('Final recommended movies:', moviesWithStoragePoster.map(m => ({ id: m.id, title: m.title })));
+              console.log('✅ Final recommended movies set:', moviesWithStoragePoster.length);
               setCurrentMovies(moviesWithStoragePoster);
             } else {
               console.warn('No recommended movies data returned');
@@ -380,7 +381,7 @@ function App() {
             }
           } else {
             // Fallback to first 10 Phase 2 movies
-            console.log('No recommendations generated, using fallback');
+            console.log('⚠️ No recommendations generated, using fallback');
             const { data, error } = await supabase
               .from('phase2_movies')
               .select('*')
@@ -401,7 +402,7 @@ function App() {
                 poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
               }));
             
-              console.log('Fallback movies set:', moviesWithStoragePoster.length);
+              console.log('✅ Fallback movies set:', moviesWithStoragePoster.length);
               setCurrentMovies(moviesWithStoragePoster);
             } else {
               console.warn('No fallback movies data returned');
@@ -409,6 +410,9 @@ function App() {
             }
           }
           setCurrentMoviesPhase('recommended');
+        } else {
+          console.error('No session ID available for recommendations');
+          setErrorMovies('Session not found. Please refresh the page and try again.');
         }
       }
     } catch (error) {
@@ -645,7 +649,9 @@ function App() {
   const handleGetRecommendations = async () => {
     console.log('=== GETTING RECOMMENDATIONS ===');
     console.log('Session ID:', sessionId);
-    console.log('API URL configured:', import.meta.env.VITE_RECOMMENDATION_API_URL);
+    console.log('API URL configured:', !!import.meta.env.VITE_RECOMMENDATION_API_URL);
+    console.log('Actual API URL:', import.meta.env.VITE_RECOMMENDATION_API_URL);
+    console.log('Webhook secret configured:', !!import.meta.env.VITE_WEBHOOK_SECRET);
     
     // First, trigger recommendation generation via the API
     if (sessionId && !sessionId.startsWith('local_')) {
@@ -655,21 +661,28 @@ function App() {
       const isHealthy = await recommenderService.checkHealth();
       console.log('API health check:', isHealthy);
       
+      if (!isHealthy) {
+        console.warn('API health check failed - proceeding with fallback');
+      }
+      
       const success = await recommenderService.triggerRecommendationGeneration(sessionId);
       
-      if (!success) {
-        console.warn('Recommendation generation failed or API not available, proceeding with fallback');
-        // Show user notification about fallback
-        console.log('Using fallback recommendations due to API unavailability');
+      if (success) {
+        console.log('✅ Recommendation generation successful');
+      } else {
+        console.warn('❌ Recommendation generation failed or API not available, proceeding with fallback');
+        console.log('Will use fallback recommendations from phase2_movies table');
       }
     } else {
       console.log('Using local session or no session, skipping API call');
     }
     
+    console.log('Proceeding to recommendation phase...');
     await recordPhaseTransition('choice', 'recommendation');
     setPhase('recommendation');
     await updateSessionPhase('recommendation');
     await fetchMovies('recommended');
+    console.log('=== RECOMMENDATION PHASE STARTED ===');
   };
 
   const handleRateMore = async () => {
