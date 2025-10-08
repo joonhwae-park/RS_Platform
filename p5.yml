@@ -68,8 +68,8 @@ dependencies:
   - nettle=3.7.3=hbbd107a_1
   - networkx=3.2.1=py39h06a4308_0
   - numexpr=2.10.1=py39h3c60e43_0
-  - numpy=2.0.1=py39h5f9d8c6_1
-  - numpy-base=2.0.1=py39hb5e798b_1
+  - numpy=1.26.4=py39h5f9d8c6_0
+  - numpy-base=1.26.4=py39hb5e798b_0
   - openh264=2.1.1=h4ff587b_0
   - openjpeg=2.5.2=h0d4d230_1
   - openssl=3.0.17=h5eee18b_0
