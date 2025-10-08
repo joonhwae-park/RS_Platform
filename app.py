@@ -1,6 +1,7 @@
 import os, sys, re, json, torch, numpy as np, random, logging
 from typing import List, Dict, Tuple, Optional
 from fastapi import FastAPI, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
 import threading
@@ -70,6 +71,15 @@ def map_history_for_p5(history: List[Dict], max_n: int = HISTORY_MAX_TRAIN) -> L
 # ===================== Client / App =====================
 sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ======================= SVD =======================
 V: Optional[np.ndarray] = None
