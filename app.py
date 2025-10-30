@@ -65,7 +65,7 @@ def map_history_for_p5(history: List[Dict], max_n: int = HISTORY_MAX_TRAIN) -> L
         internal = map_movie_for_p5(ext)
         if internal is None:
             continue
-        out.append({"movie_id": internal, "ratings": float(h.get("ratings", 0.0))})
+        out.append({"movie_id": internal, "ratings": float(h.get("rating", 0.0))})
     return out
 
 # ===================== Client / App =====================
@@ -145,7 +145,7 @@ def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
     idxs, y = [], []
     for h in history:
         mid = h.get("movie_id")
-        r = float(h.get("ratings", 0))
+        r = float(h.get("rating", 0.0))
         ix = IDX.get(mid)
         if ix is None: 
             continue
