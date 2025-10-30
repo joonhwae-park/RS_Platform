@@ -6,12 +6,20 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 import threading
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+for h in logger.handlers[:]:
+    logger.removeHandler(h)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
