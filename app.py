@@ -152,10 +152,10 @@ def load_svd():
 def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
     idxs, y = [], []
     for h in history:
-        mid = h.get("movie_id")
+        mid = str(h.get("movie_id"))  # Ensure string type
         r = float(h.get("rating", 0.0))
         ix = IDX.get(mid)
-        if ix is None: 
+        if ix is None:
             continue
         idxs.append(ix)
         y.append(r - MU - ITEM_BIAS[ix])
@@ -472,27 +472,45 @@ def _heavy_init():
     """Initialize all heavy models in background thread"""
     try:
         logger.info("Starting heavy initialization...")
-        
+
         # ENV Validity check
         required = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"]
         missing = [k for k in required if not os.getenv(k)]
         if missing:
             raise RuntimeError(f"Missing env: {', '.join(missing)}")
         logger.info("Environment variables validated")
-        
-        # Load all models
-        load_svd()
-        load_tokenizer_once()
-        load_base_state_once()
-        load_datamaps()
 
-        READY.update(ok=True, msg="ready")
-        logger.info("Heavy initialization completed successfully")
-        
+        # Mark as ready FIRST with limited functionality
+        # This prevents Cloud Run from killing the instance
+        READY.update(ok=True, msg="ready_basic")
+        logger.info("Basic initialization complete, service is ready")
+
+        # Load models in order of importance
+        logger.info("Loading SVD model (critical)...")
+        load_svd()
+        logger.info("SVD model loaded")
+
+        logger.info("Loading datamaps (critical)...")
+        load_datamaps()
+        logger.info("Datamaps loaded")
+
+        logger.info("Loading P5 tokenizer...")
+        load_tokenizer_once()
+        logger.info("P5 tokenizer loaded")
+
+        logger.info("Loading P5 base state...")
+        load_base_state_once()
+        logger.info("P5 base state loaded")
+
+        READY.update(ok=True, msg="ready_full")
+        logger.info("Full initialization completed successfully")
+
     except Exception as e:
         error_msg = f"init_error: {e}"
         READY.update(ok=False, msg=error_msg)
         logger.error(f"Heavy initialization failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 @app.on_event("startup")
 def _startup():
@@ -515,7 +533,8 @@ def health():
 @app.post("/recommend")
 def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
     logger.info(f"Recommendation request received for session {req.session_id}")
-    
+    logger.info(f"Service status: {READY['msg']}")
+
     if not READY["ok"]:
         logger.warning(f"Service not ready: {READY['msg']}")
         raise HTTPException(503, "warming up")
@@ -523,6 +542,11 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
     if WEBHOOK_SECRET and x_webhook_secret != WEBHOOK_SECRET:
         logger.warning("Invalid webhook secret provided")
         raise HTTPException(401, "bad secret")
+
+    # Check if we have full P5 capabilities
+    use_p5 = (READY["msg"] == "ready_full" and TOKENIZER is not None and BASE_STATE is not None)
+    if not use_p5:
+        logger.warning("P5 model not fully loaded, will use SVD-only recommendations")
 
     try:
         # 1) Input acquisition
@@ -546,46 +570,62 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         logger.info(f"SVD generated {len(svd_top100)} scored candidates")
 
         # 3) P5 soft prompt: create per-user base + attach adapter + short finetuning
-        logger.info("Step 3: Preparing P5 model")
-        hist_mapped = map_history_for_p5(hist, max_n=HISTORY_MAX_TRAIN)
-        logger.info(f"Mapped {len(hist_mapped)} history items for P5")
-        
-        base = create_per_request_base()
-        per_user = attach_soft_prompt(base, TOKENIZER)
-        finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist_mapped)
+        p5_rows = []
+        if use_p5:
+            try:
+                logger.info("Step 3: Preparing P5 model")
+                hist_mapped = map_history_for_p5(hist, max_n=HISTORY_MAX_TRAIN)
+                logger.info(f"Mapped {len(hist_mapped)} history items for P5")
 
-        # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
-        logger.info("Step 4: P5 reranking of SVD top candidates")
-        pairs = []  # [(ext_mid, internal_id)]
-        for ext_mid, _ in svd_top100:
-            internal = map_movie_for_p5(ext_mid)
-            if internal is not None:
-                pairs.append((ext_mid, internal))
-        
-        if pairs:
-            mapped_ids = [internal for _, internal in pairs]
-            p5_scores = p5_score_candidates_mapped(per_user, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
-            # Pair score with external movie_id
-            p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
+                base = create_per_request_base()
+                per_user = attach_soft_prompt(base, TOKENIZER)
+                finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist_mapped)
+
+                # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
+                logger.info("Step 4: P5 reranking of SVD top candidates")
+                pairs = []  # [(ext_mid, internal_id)]
+                for ext_mid, _ in svd_top100:
+                    internal = map_movie_for_p5(ext_mid)
+                    if internal is not None:
+                        pairs.append((ext_mid, internal))
+
+                if pairs:
+                    mapped_ids = [internal for _, internal in pairs]
+                    p5_scores = p5_score_candidates_mapped(per_user, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
+                    # Pair score with external movie_id
+                    p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
+                else:
+                    logger.warning("No movies could be mapped for P5 scoring")
+                    p5_scored_on_100 = []
+
+                p5_rows = rows_from_scored(req.session_id, "p5", p5_scored_on_100, topk=req.topk_per_model, phase=req.phase)
+            except Exception as e:
+                logger.error(f"P5 processing failed, continuing with SVD only: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                p5_rows = []
         else:
-            logger.warning("No movies could be mapped for P5 scoring")
-            p5_scored_on_100 = []
-            
-        p5_rows = rows_from_scored(req.session_id, "p5", p5_scored_on_100, topk=req.topk_per_model, phase=req.phase)
+            logger.info("Step 3-4: Skipping P5 processing (model not available)")
 
         # 5) Display order
         logger.info("Step 5: Building display sequence")
-        p5_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(p5_rows, key=lambda x:x["rank"])][:5]
-        svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:5]
-        display_seq = build_display_sequence(p5_top_pairs, svd_top_pairs)
+        if p5_rows:
+            p5_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(p5_rows, key=lambda x:x["rank"])][:5]
+            svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:5]
+            display_seq = build_display_sequence(p5_top_pairs, svd_top_pairs)
+        else:
+            # SVD-only: just use top 10 SVD results
+            svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:10]
+            display_seq = [("svd", mid, i+1) for i, (mid, _) in enumerate(svd_top_pairs)]
 
         # 6) Reflect display order
         logger.info("Step 6: Applying display order")
         disp_map = {(m, mid): order for (m, mid, order) in display_seq}
-        for r in p5_rows:
-            key = ("p5", r["movie_id"])
-            if key in disp_map:
-                r["display_order"] = disp_map[key]
+        if p5_rows:
+            for r in p5_rows:
+                key = ("p5", r["movie_id"])
+                if key in disp_map:
+                    r["display_order"] = disp_map[key]
         for r in svd_rows:
             key = ("svd", r["movie_id"])
             if key in disp_map:
@@ -593,7 +633,8 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
 
         # 7) upsert
         logger.info("Step 7: Saving recommendations to database")
-        upsert_rows(p5_rows)
+        if p5_rows:
+            upsert_rows(p5_rows)
         upsert_rows(svd_rows)
 
         result = {
