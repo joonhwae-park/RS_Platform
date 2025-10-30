@@ -33,4 +33,4 @@ COPY app.py /workspace/app.py
 # Cloud Run Port
 EXPOSE 8080
 
-ENTRYPOINT ["micromamba","run","-n","p5","uvicorn","app:app","--host","0.0.0.0","--port","8080"]
+ENTRYPOINT ["micromamba","run","-n","p5","uvicorn","app:app","--host","0.0.0.0","--port","8080","--log-level","info"]
