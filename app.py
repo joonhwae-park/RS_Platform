@@ -193,7 +193,8 @@ from peft import get_peft_model, PromptTuningConfig, PromptEncoderConfig, TaskTy
 TOKENIZER, BASE_STATE = None, None
 
 def create_config_eval():
-    cfg = T5Config.from_pretrained(P5_BACKBONE)
+    # Load config from local cache only (no network calls)
+    cfg = T5Config.from_pretrained(P5_BACKBONE, local_files_only=True)
     cfg.dropout_rate = P5_DROPOUT
     cfg.dropout = P5_DROPOUT
     cfg.attention_dropout = P5_DROPOUT
@@ -207,11 +208,12 @@ def load_tokenizer_once():
         return
     try:
         logger.info(f"Loading P5 tokenizer from {P5_BACKBONE}")
-        # P5Tokenizer needs to access cached files without local_files_only restriction
+        # Load tokenizer from local cache only (no network calls)
         TOKENIZER = P5Tokenizer.from_pretrained(
             P5_BACKBONE,
             max_length=P5_MAX_LEN,
-            do_lower_case=False
+            do_lower_case=False,
+            local_files_only=True
         )
         logger.info("P5 tokenizer loaded successfully")
     except Exception as e:
@@ -236,8 +238,8 @@ def load_base_state_once():
 
 def create_per_request_base():
     cfg = create_config_eval()
-    # Load from cached PyTorch weights downloaded during Docker build
-    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg).to(DEVICE)
+    # Load from cached PyTorch weights only (no network calls to HuggingFace)
+    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg, local_files_only=True).to(DEVICE)
     model.resize_token_embeddings(TOKENIZER.vocab_size)
     model.tokenizer = TOKENIZER
     model.eval()
