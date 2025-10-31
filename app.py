@@ -231,7 +231,8 @@ def load_base_state_once():
 
 def create_per_request_base():
     cfg = create_config_eval()
-    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg).to(DEVICE)
+    # Use local_files_only to avoid downloading from HuggingFace
+    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg, local_files_only=True).to(DEVICE)
     model.resize_token_embeddings(TOKENIZER.vocab_size)
     model.tokenizer = TOKENIZER
     model.eval()
@@ -453,8 +454,17 @@ def upsert_rows(rows: List[Dict]):
     if rows:
         try:
             logger.info(f"Upserting {len(rows)} recommendation rows to database")
-            sb.table("recommendations").upsert(rows).execute()
-            logger.info("Recommendation rows upserted successfully")
+            # Delete existing recommendations for this session/model/phase before inserting new ones
+            if rows:
+                session_id = rows[0]["session_id"]
+                model = rows[0]["model"]
+                phase = rows[0]["phase"]
+                sb.table("recommendations").delete().eq("session_id", session_id).eq("model", model).eq("phase", phase).execute()
+                logger.info(f"Deleted existing {model} recommendations for session {session_id}")
+
+            # Now insert the new rows
+            sb.table("recommendations").insert(rows).execute()
+            logger.info("Recommendation rows inserted successfully")
         except Exception as e:
             logger.error(f"Failed to upsert recommendation rows: {e}")
             raise
