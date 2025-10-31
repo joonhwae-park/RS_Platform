@@ -32,12 +32,16 @@ WORKDIR /workspace
 COPY app.py /workspace/app.py
 
 # Download t5-small model during build and cache it locally
-# This prevents runtime downloads from HuggingFace
-RUN micromamba run -n p5 python -c "from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config; \
-    T5ForConditionalGeneration.from_pretrained('t5-small'); \
-    T5Tokenizer.from_pretrained('t5-small'); \
-    T5Config.from_pretrained('t5-small'); \
-    print('t5-small model cached successfully')"
+# Force PyTorch weights (not TensorFlow) to be downloaded
+RUN micromamba run -n p5 python -c "import torch; \
+    from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config; \
+    print('Downloading t5-small with PyTorch weights...'); \
+    model = T5ForConditionalGeneration.from_pretrained('t5-small', from_tf=False); \
+    tokenizer = T5Tokenizer.from_pretrained('t5-small'); \
+    config = T5Config.from_pretrained('t5-small'); \
+    print(f'Model type: {type(model).__name__}'); \
+    print(f'Model device: {next(model.parameters()).device}'); \
+    print('t5-small PyTorch model cached successfully')"
 
 # Cloud Run Port
 EXPOSE 8080

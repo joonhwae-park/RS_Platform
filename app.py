@@ -236,8 +236,8 @@ def load_base_state_once():
 
 def create_per_request_base():
     cfg = create_config_eval()
-    # Use local_files_only to avoid downloading from HuggingFace
-    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg, local_files_only=True).to(DEVICE)
+    # Load from cached PyTorch weights downloaded during Docker build
+    model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg).to(DEVICE)
     model.resize_token_embeddings(TOKENIZER.vocab_size)
     model.tokenizer = TOKENIZER
     model.eval()
