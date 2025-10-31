@@ -28,7 +28,13 @@ RUN git clone https://github.com/joonhwae-park/P5_mod.git /workspace/P5-main
 ENV P5_ROOT=/workspace/P5-main
 WORKDIR /workspace
 
+# Copy application code
 COPY app.py /workspace/app.py
+
+# Copy t5-small model files to HuggingFace cache location
+# This prevents runtime downloads from HuggingFace
+RUN mkdir -p /root/.cache/huggingface/hub/models--google-t5--t5-small/snapshots/default
+COPY models/t5-small/ /root/.cache/huggingface/hub/models--google-t5--t5-small/snapshots/default/
 
 # Cloud Run Port
 EXPOSE 8080
