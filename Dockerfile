@@ -33,9 +33,10 @@ COPY app.py /workspace/app.py
 
 # Download t5-small model during build and cache it locally
 # This prevents runtime downloads from HuggingFace
-RUN micromamba run -n p5 python -c "from transformers import T5Tokenizer, T5ForConditionalGeneration; \
-    T5ForConditionalGeneration.from_pretrained('google-t5/t5-small'); \
-    T5Tokenizer.from_pretrained('google-t5/t5-small'); \
+RUN micromamba run -n p5 python -c "from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config; \
+    T5ForConditionalGeneration.from_pretrained('t5-small'); \
+    T5Tokenizer.from_pretrained('t5-small'); \
+    T5Config.from_pretrained('t5-small'); \
     print('t5-small model cached successfully')"
 
 # Cloud Run Port

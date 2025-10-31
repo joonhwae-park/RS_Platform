@@ -207,7 +207,12 @@ def load_tokenizer_once():
         return
     try:
         logger.info(f"Loading P5 tokenizer from {P5_BACKBONE}")
-        TOKENIZER = P5Tokenizer.from_pretrained(P5_BACKBONE, max_length=P5_MAX_LEN, do_lower_case=False)
+        # P5Tokenizer needs to access cached files without local_files_only restriction
+        TOKENIZER = P5Tokenizer.from_pretrained(
+            P5_BACKBONE,
+            max_length=P5_MAX_LEN,
+            do_lower_case=False
+        )
         logger.info("P5 tokenizer loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load P5 tokenizer: {e}")
