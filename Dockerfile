@@ -31,10 +31,12 @@ WORKDIR /workspace
 # Copy application code
 COPY app.py /workspace/app.py
 
-# Copy t5-small model files to HuggingFace cache location
+# Download t5-small model during build and cache it locally
 # This prevents runtime downloads from HuggingFace
-RUN mkdir -p /root/.cache/huggingface/hub/models--google-t5--t5-small/snapshots/default
-COPY models/t5-small/ /root/.cache/huggingface/hub/models--google-t5--t5-small/snapshots/default/
+RUN micromamba run -n p5 python -c "from transformers import T5Tokenizer, T5ForConditionalGeneration; \
+    T5ForConditionalGeneration.from_pretrained('google-t5/t5-small'); \
+    T5Tokenizer.from_pretrained('google-t5/t5-small'); \
+    print('t5-small model cached successfully')"
 
 # Cloud Run Port
 EXPOSE 8080
