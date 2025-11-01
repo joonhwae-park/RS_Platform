@@ -31,23 +31,9 @@ WORKDIR /workspace
 # Copy application code
 COPY app.py /workspace/app.py
 
-# Download t5-small model during build and cache it locally
-# Force PyTorch weights (not TensorFlow) to be downloaded
-RUN micromamba run -n p5 python -c "import sys, os, torch; \
-    sys.path.extend(['/workspace/P5-main', os.path.join('/workspace/P5-main', 'src')]); \
-    from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config; \
-    from src.tokenization import P5Tokenizer; \
-    from src.pretrain_model import P5Pretraining; \
-    print('Downloading t5-small with PyTorch weights...'); \
-    model = T5ForConditionalGeneration.from_pretrained('t5-small', from_tf=False); \
-    tokenizer = T5Tokenizer.from_pretrained('t5-small'); \
-    p5_tokenizer = P5Tokenizer.from_pretrained('t5-small', max_length=256, do_lower_case=False); \
-    config = T5Config.from_pretrained('t5-small'); \
-    p5_model = P5Pretraining.from_pretrained('t5-small', config=config); \
-    print(f'Model type: {type(model).__name__}'); \
-    print(f'P5 Model type: {type(p5_model).__name__}'); \
-    print(f'P5 Tokenizer type: {type(p5_tokenizer).__name__}'); \
-    print('t5-small PyTorch model and P5 components cached successfully')"
+# t5-small model will be loaded from GCS bucket mounted at runtime
+# Models located at: gs://llmeval_cloud/models/t5-small/
+# Mount bucket to / so /models/t5-small is accessible
 
 # Cloud Run Port
 EXPOSE 8080
