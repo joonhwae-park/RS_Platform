@@ -49,44 +49,37 @@ export class RecommenderService {
     try {
       console.log('Reading recommendations from database for session:', sessionId);
       
-      // Get recommendations from the recommendations table, sorted by display_order
-      // Use the latest recommendations only (by created_at)
-      const { data: allRecs, error: fetchError } = await supabase
+      // Get recommendations from the recommendations table for THIS session only
+      // The backend ensures only one batch exists per session by:
+      // 1. Deleting old recommendations before inserting new ones (per session/model/phase)
+      // 2. Unique constraint on (session_id, movie_id, model, phase)
+      // Therefore, we can simply fetch all recommendations with display_order for this session
+      // and sort by display_order.
+      const { data: recommendations, error: fetchError } = await supabase
         .from('recommendations')
-        .select('movie_id, display_order, created_at')
+        .select('movie_id, display_order')
         .eq('session_id', sessionId)
         .not('display_order', 'is', null)
-        .order('created_at', { ascending: false });
+        .order('display_order', { ascending: true });
 
       if (fetchError) {
         console.error('Error fetching recommendations from database:', fetchError);
         return this.getFallbackRecommendations();
       }
 
-      if (!allRecs || allRecs.length === 0) {
+      if (!recommendations || recommendations.length === 0) {
         console.warn('No recommendations found in database for session:', sessionId);
         return this.getFallbackRecommendations();
       }
 
-      // Get the most recent timestamp
-      const latestTimestamp = allRecs[0].created_at;
+      // Extract movie IDs in display_order (should be unique due to unique constraint)
+      const movieIds = recommendations.map(r => r.movie_id);
 
-      // Filter to only include recommendations from the latest batch
-      const latestRecs = allRecs.filter(r => r.created_at === latestTimestamp);
-
-      // Sort by display_order
-      const recommendations = latestRecs.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-
-      // Handle potential duplicate movie_ids by taking only unique ones
-      const uniqueMovieIds = Array.from(new Set(recommendations.map(r => r.movie_id)));
-
-      console.log('✅ Recommendations loaded from database:', uniqueMovieIds);
-      console.log('Latest timestamp:', latestTimestamp);
-      console.log('Total recommendations found:', allRecs.length);
-      console.log('Latest batch recommendations:', recommendations.length);
+      console.log('✅ Recommendations loaded for session', sessionId, ':', movieIds);
+      console.log('Total recommendations with display_order:', recommendations.length);
       console.log('Display orders:', recommendations.map(r => ({ id: r.movie_id, order: r.display_order })));
 
-      return uniqueMovieIds;
+      return movieIds;
 
     } catch (error) {
       console.error('Error reading recommendations from database:', error);
