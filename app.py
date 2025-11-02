@@ -284,7 +284,16 @@ def _first_float(text: str, default: float = -1.0) -> float:
     return float(m.group(0)) if m else default
 
 def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]] = None) -> str:
-    return f"Which star rating will user_{session_id} give movie_{movie_id}? (0 being lowest and 10 being highest)"
+    base_prompt = f"Which star rating will user_{session_id} give movie_{movie_id}?"
+    if history and len(history) > 0:
+        history_str = "Previous ratings: "
+        for h in history[-10:]:
+            hist_mid = str(h.get("movie_id", "unknown"))
+            hist_rating = float(h.get("ratings", 0.0))
+            history_str += f"movie_{hist_mid}:{hist_rating:.1f}, "
+        history_str = history_str.rstrip(", ")
+        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest)"
+    return f"{base_prompt} (0 being lowest and 10 being highest)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
@@ -602,8 +611,7 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 logger.info(f"Mapped {len(hist_mapped)} history items for P5")
 
                 base = create_per_request_base()
-                per_user = attach_soft_prompt(base, TOKENIZER)
-                finetune_soft_prompt(per_user, TOKENIZER, req.session_id, hist_mapped)
+                base.eval()
 
                 # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
                 logger.info("Step 4: P5 reranking of SVD top candidates")
@@ -615,7 +623,7 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
 
                 if pairs:
                     mapped_ids = [internal for _, internal in pairs]
-                    p5_scores = p5_score_candidates_mapped(per_user, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
+                    p5_scores = p5_score_candidates_mapped(base, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
                     # Pair score with external movie_id
                     p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
                 else:
