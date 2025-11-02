@@ -404,16 +404,18 @@ def build_display_sequence(p5_top: List[Tuple[str, float]],
                            svd_top: List[Tuple[str, float]]) -> List[Tuple[str, str, int]]:
     """
     Interleaved Displaying Order: starting model is random.
-    - Take the top 5 from each model as candidates.
-    - If a movie is duplicated, keep the one from the earlier model and skip it in the later model, moving to the next rank.
-    Return: [(model, movie_id, display_order 1..N)]
+    - Take all 10 from each model as candidates.
+    - Alternate between models: Model1 #1, Model2 #1, Model1 #2, Model2 #2, etc.
+    - If a movie is duplicated, skip it in the later model and move to the next rank.
+    - Continue until we have 10 unique movies.
+    Return: [(model, movie_id, display_order 1..10)]
     """
-    p5_list = p5_top[:5]
-    svd_list = svd_top[:5]
+    p5_list = p5_top[:10]  # Use all 10 ranks
+    svd_list = svd_top[:10]  # Use all 10 ranks
     i_p5 = 0
     i_svd = 0
-    need_p5 = 5
-    need_svd = 5
+    need_p5 = 10  # Try to get up to 10 from P5
+    need_svd = 10  # Try to get up to 10 from SVD
     used = set()
     seq: List[Tuple[str, str, int]] = []
 
@@ -421,36 +423,35 @@ def build_display_sequence(p5_top: List[Tuple[str, float]],
     turn = random.choice(["p5", "svd"])
     logger.info(f"Building display sequence starting with {turn}")
 
-    while (need_p5 > 0 or need_svd > 0) and (i_p5 < len(p5_list) or i_svd < len(svd_list)):
-        if turn == "p5" and need_p5 > 0:
+    # Continue until we have 10 unique movies or run out of candidates
+    while len(seq) < 10 and (i_p5 < len(p5_list) or i_svd < len(svd_list)):
+        if turn == "p5":
+            # Skip duplicates in P5
             while i_p5 < len(p5_list) and p5_list[i_p5][0] in used:
                 i_p5 += 1
             if i_p5 < len(p5_list):
                 mid = p5_list[i_p5][0]
                 seq.append(("p5", mid, len(seq)+1))
                 used.add(mid)
-                need_p5 -= 1
                 i_p5 += 1
             turn = "svd"
-        elif turn == "svd" and need_svd > 0:
+        elif turn == "svd":
+            # Skip duplicates in SVD
             while i_svd < len(svd_list) and svd_list[i_svd][0] in used:
                 i_svd += 1
             if i_svd < len(svd_list):
                 mid = svd_list[i_svd][0]
                 seq.append(("svd", mid, len(seq)+1))
                 used.add(mid)
-                need_svd -= 1
                 i_svd += 1
             turn = "p5"
-        else:
-            # If the current turn model has no movies left, switch to the opposite turn model
-            turn = "p5" if turn == "svd" else "svd"
-            # If neither can move, end.
-            if (need_p5 <= 0 or i_p5 >= len(p5_list)) and (need_svd <= 0 or i_svd >= len(svd_list)):
-                break
 
-    logger.info(f"Display sequence built with {len(seq)} movies")
-    return seq  # max length = 10
+        # Safety check: if both models are exhausted, break
+        if i_p5 >= len(p5_list) and i_svd >= len(svd_list):
+            break
+
+    logger.info(f"Display sequence built with {len(seq)} movies (P5 used: {sum(1 for m, _, _ in seq if m == 'p5')}, SVD used: {sum(1 for m, _, _ in seq if m == 'svd')})")
+    return seq
 
 def rows_from_scored(session_id: str, model: str, scored: List[Tuple[str, float]],
                      topk: int, phase: int) -> List[Dict]:
@@ -642,8 +643,9 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         # 5) Display order
         logger.info("Step 5: Building display sequence")
         if p5_rows:
-            p5_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(p5_rows, key=lambda x:x["rank"])][:5]
-            svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:5]
+            # Pass all 10 movies from each model to build_display_sequence
+            p5_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(p5_rows, key=lambda x:x["rank"])][:10]
+            svd_top_pairs = [(r["movie_id"], r["score"]) for r in sorted(svd_rows, key=lambda x:x["rank"])][:10]
             display_seq = build_display_sequence(p5_top_pairs, svd_top_pairs)
         else:
             # SVD-only: just use top 10 SVD results
@@ -654,41 +656,20 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         logger.info("Step 6: Applying display order")
         disp_map = {(m, mid): order for (m, mid, order) in display_seq}
 
-        # Track which movies got display_order from the interleaving sequence
-        assigned_movies = set()
-
+        # Apply display_order to the movies in the display sequence
         if p5_rows:
             for r in p5_rows:
                 key = ("p5", r["movie_id"])
                 if key in disp_map:
                     r["display_order"] = disp_map[key]
-                    assigned_movies.add(r["movie_id"])
         for r in svd_rows:
             key = ("svd", r["movie_id"])
             if key in disp_map:
                 r["display_order"] = disp_map[key]
-                assigned_movies.add(r["movie_id"])
 
-        # Assign display_order to remaining movies (those not in top interleaved sequence)
-        # These will be ordered after the main display sequence
-        next_order = len(display_seq) + 1
-
-        # Add remaining P5 movies
-        if p5_rows:
-            for r in sorted(p5_rows, key=lambda x: x["rank"]):
-                if r["movie_id"] not in assigned_movies:
-                    r["display_order"] = next_order
-                    assigned_movies.add(r["movie_id"])
-                    next_order += 1
-
-        # Add remaining SVD movies
-        for r in sorted(svd_rows, key=lambda x: x["rank"]):
-            if r["movie_id"] not in assigned_movies:
-                r["display_order"] = next_order
-                assigned_movies.add(r["movie_id"])
-                next_order += 1
-
-        logger.info(f"Assigned display_order to {len(assigned_movies)} movies (1 to {next_order-1})")
+        # Count how many movies got display_order
+        movies_with_display_order = sum(1 for r in (p5_rows + svd_rows) if r.get("display_order") is not None)
+        logger.info(f"Assigned display_order to {movies_with_display_order} movies from the interleaved sequence")
 
         # 7) upsert
         logger.info("Step 7: Saving recommendations to database")

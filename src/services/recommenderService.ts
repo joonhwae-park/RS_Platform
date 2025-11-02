@@ -80,10 +80,11 @@ export class RecommenderService {
       // Handle potential duplicate movie_ids by taking only unique ones
       const uniqueMovieIds = Array.from(new Set(recommendations.map(r => r.movie_id)));
 
-      console.log('Recommendations loaded from database:', uniqueMovieIds);
+      console.log('✅ Recommendations loaded from database:', uniqueMovieIds);
       console.log('Latest timestamp:', latestTimestamp);
       console.log('Total recommendations found:', allRecs.length);
       console.log('Latest batch recommendations:', recommendations.length);
+      console.log('Display orders:', recommendations.map(r => ({ id: r.movie_id, order: r.display_order })));
 
       return uniqueMovieIds;
 
