@@ -254,6 +254,10 @@ def attach_soft_prompt(model, tokenizer,
     if method not in {"prompt_tuning", "p_tuning"}:
         raise ValueError("SOFTPROMPT_METHOD must be 'prompt_tuning' or 'p_tuning'")
 
+    # Move model to CPU temporarily to avoid device mismatch during PEFT initialization
+    device = next(model.parameters()).device
+    model = model.cpu()
+
     if method == "prompt_tuning":
         cfg = PromptTuningConfig(
             task_type=TaskType.SEQ_2_SEQ_LM,
@@ -270,6 +274,9 @@ def attach_soft_prompt(model, tokenizer,
         )
     peft_model = get_peft_model(model, cfg)
     peft_model.print_trainable_parameters()
+
+    # Move back to original device
+    peft_model = peft_model.to(device)
     return peft_model
 
 def _first_float(text: str, default: float = -1.0) -> float:
