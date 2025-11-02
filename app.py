@@ -287,7 +287,7 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
     base_prompt = f"Which star rating will user_{session_id} give movie_{movie_id}?"
     if history and len(history) > 0:
         history_str = "Previous ratings: "
-        for h in history[-10:]:
+        for h in history[-30:]:
             hist_mid = str(h.get("movie_id", "unknown"))
             hist_rating = float(h.get("ratings", 0.0))
             history_str += f"movie_{hist_mid}:{hist_rating:.1f}, "
