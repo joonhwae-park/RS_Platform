@@ -50,27 +50,42 @@ export class RecommenderService {
       console.log('Reading recommendations from database for session:', sessionId);
       
       // Get recommendations from the recommendations table, sorted by display_order
-      const { data: recommendations, error } = await supabase
+      // Use the latest recommendations only (by created_at)
+      const { data: allRecs, error: fetchError } = await supabase
         .from('recommendations')
-        .select('movie_id')
+        .select('movie_id, display_order, created_at')
         .eq('session_id', sessionId)
         .not('display_order', 'is', null)
-        .order('display_order', { ascending: true });
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching recommendations from database:', error);
+      if (fetchError) {
+        console.error('Error fetching recommendations from database:', fetchError);
         return this.getFallbackRecommendations();
       }
 
-      if (!recommendations || recommendations.length === 0) {
+      if (!allRecs || allRecs.length === 0) {
         console.warn('No recommendations found in database for session:', sessionId);
         return this.getFallbackRecommendations();
       }
 
-      const movieIds = recommendations.map(r => r.movie_id);
-      console.log('Recommendations loaded from database:', movieIds);
-      
-      return movieIds;
+      // Get the most recent timestamp
+      const latestTimestamp = allRecs[0].created_at;
+
+      // Filter to only include recommendations from the latest batch
+      const latestRecs = allRecs.filter(r => r.created_at === latestTimestamp);
+
+      // Sort by display_order
+      const recommendations = latestRecs.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+      // Handle potential duplicate movie_ids by taking only unique ones
+      const uniqueMovieIds = Array.from(new Set(recommendations.map(r => r.movie_id)));
+
+      console.log('Recommendations loaded from database:', uniqueMovieIds);
+      console.log('Latest timestamp:', latestTimestamp);
+      console.log('Total recommendations found:', allRecs.length);
+      console.log('Latest batch recommendations:', recommendations.length);
+
+      return uniqueMovieIds;
 
     } catch (error) {
       console.error('Error reading recommendations from database:', error);

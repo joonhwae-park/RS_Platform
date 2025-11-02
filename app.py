@@ -653,15 +653,42 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         # 6) Reflect display order
         logger.info("Step 6: Applying display order")
         disp_map = {(m, mid): order for (m, mid, order) in display_seq}
+
+        # Track which movies got display_order from the interleaving sequence
+        assigned_movies = set()
+
         if p5_rows:
             for r in p5_rows:
                 key = ("p5", r["movie_id"])
                 if key in disp_map:
                     r["display_order"] = disp_map[key]
+                    assigned_movies.add(r["movie_id"])
         for r in svd_rows:
             key = ("svd", r["movie_id"])
             if key in disp_map:
                 r["display_order"] = disp_map[key]
+                assigned_movies.add(r["movie_id"])
+
+        # Assign display_order to remaining movies (those not in top interleaved sequence)
+        # These will be ordered after the main display sequence
+        next_order = len(display_seq) + 1
+
+        # Add remaining P5 movies
+        if p5_rows:
+            for r in sorted(p5_rows, key=lambda x: x["rank"]):
+                if r["movie_id"] not in assigned_movies:
+                    r["display_order"] = next_order
+                    assigned_movies.add(r["movie_id"])
+                    next_order += 1
+
+        # Add remaining SVD movies
+        for r in sorted(svd_rows, key=lambda x: x["rank"]):
+            if r["movie_id"] not in assigned_movies:
+                r["display_order"] = next_order
+                assigned_movies.add(r["movie_id"])
+                next_order += 1
+
+        logger.info(f"Assigned display_order to {len(assigned_movies)} movies (1 to {next_order-1})")
 
         # 7) upsert
         logger.info("Step 7: Saving recommendations to database")
