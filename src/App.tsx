@@ -75,6 +75,7 @@ function App() {
   const [pendingRatings, setPendingRatings] = useState<Map<string, any>>(new Map());
   const [currentMoviesPhase, setCurrentMoviesPhase] = useState<'initial' | 'recommended' | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState<boolean>(false);
 
   // Mouse tracking
   const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
@@ -659,37 +660,43 @@ function App() {
     console.log('API URL configured:', !!import.meta.env.VITE_RECOMMENDATION_API_URL);
     console.log('Actual API URL:', import.meta.env.VITE_RECOMMENDATION_API_URL);
     console.log('Webhook secret configured:', !!import.meta.env.VITE_WEBHOOK_SECRET);
-    
-    // First, trigger recommendation generation via the API
-    if (sessionId && !sessionId.startsWith('local_')) {
-      console.log('Triggering recommendation generation...');
-      
-      // Check API health first
-      const isHealthy = await recommenderService.checkHealth();
-      console.log('API health check:', isHealthy);
-      
-      if (!isHealthy) {
-        console.warn('API health check failed - proceeding with fallback');
-      }
-      
-      const success = await recommenderService.triggerRecommendationGeneration(sessionId);
-      
-      if (success) {
-        console.log('✅ Recommendation generation successful');
+
+    setIsGeneratingRecommendations(true);
+
+    try {
+      // First, trigger recommendation generation via the API
+      if (sessionId && !sessionId.startsWith('local_')) {
+        console.log('Triggering recommendation generation...');
+
+        // Check API health first
+        const isHealthy = await recommenderService.checkHealth();
+        console.log('API health check:', isHealthy);
+
+        if (!isHealthy) {
+          console.warn('API health check failed - proceeding with fallback');
+        }
+
+        const success = await recommenderService.triggerRecommendationGeneration(sessionId);
+
+        if (success) {
+          console.log('✅ Recommendation generation successful');
+        } else {
+          console.warn('❌ Recommendation generation failed or API not available, proceeding with fallback');
+          console.log('Will use fallback recommendations from phase2_movies table');
+        }
       } else {
-        console.warn('❌ Recommendation generation failed or API not available, proceeding with fallback');
-        console.log('Will use fallback recommendations from phase2_movies table');
+        console.log('Using local session or no session, skipping API call');
       }
-    } else {
-      console.log('Using local session or no session, skipping API call');
+
+      console.log('Proceeding to recommendation phase...');
+      await recordPhaseTransition('choice', 'recommendation');
+      setPhase('recommendation');
+      await updateSessionPhase('recommendation');
+      await fetchMovies('recommended');
+      console.log('=== RECOMMENDATION PHASE STARTED ===');
+    } finally {
+      setIsGeneratingRecommendations(false);
     }
-    
-    console.log('Proceeding to recommendation phase...');
-    await recordPhaseTransition('choice', 'recommendation');
-    setPhase('recommendation');
-    await updateSessionPhase('recommendation');
-    await fetchMovies('recommended');
-    console.log('=== RECOMMENDATION PHASE STARTED ===');
   };
 
   const handleRateMore = async () => {
@@ -796,6 +803,7 @@ function App() {
         ratingsCount={getValidRatingsCount()}
         onGetRecommendations={handleGetRecommendations}
         onRateMore={handleRateMore}
+        isGeneratingRecommendations={isGeneratingRecommendations}
       />
     );
   }

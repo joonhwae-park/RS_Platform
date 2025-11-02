@@ -1,17 +1,38 @@
 import React from 'react';
-import { Lightbulb, Star } from 'lucide-react';
+import { Lightbulb, Star, Loader2 } from 'lucide-react';
 
 interface ChoiceScreenProps {
   ratingsCount: number;
   onGetRecommendations: () => void;
   onRateMore: () => void;
+  isGeneratingRecommendations?: boolean;
 }
 
 export const ChoiceScreen: React.FC<ChoiceScreenProps> = ({
   ratingsCount,
   onGetRecommendations,
-  onRateMore
+  onRateMore,
+  isGeneratingRecommendations = false
 }) => {
+  if (isGeneratingRecommendations) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center p-8">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-amber-500 mx-auto mb-6" size={64} />
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Generating Your Personalized Recommendations
+          </h2>
+          <p className="text-xl text-gray-400 mb-2">
+            Analyzing your ratings and preferences...
+          </p>
+          <p className="text-lg text-gray-500">
+            This may take a few moments
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-8">
       <div className="max-w-2xl mx-auto text-center">
@@ -45,7 +66,7 @@ export const ChoiceScreen: React.FC<ChoiceScreenProps> = ({
             <div className="text-xl mb-2">Get Recommendations</div>
             <div className="text-sm opacity-90">See movies picked just for you</div>
           </button>
-          
+
           <button
             onClick={onRateMore}
             className="bg-gray-800 hover:bg-gray-700 text-white font-semibold py-4 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl border border-gray-600"
