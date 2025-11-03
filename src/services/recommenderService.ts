@@ -45,7 +45,7 @@ export class RecommenderService {
   async generateRecommendations(
     sessionId: string,
     userRatings: any[]
-  ): Promise<number[]> {
+  ): Promise<string[]> {
     try {
       console.log('Reading recommendations from database for session:', sessionId);
 
@@ -112,7 +112,7 @@ export class RecommenderService {
   /**
    * Fallback recommendations when SVD algorithm fails
    */
-  private async getFallbackRecommendations(): Promise<number[]> {
+  private async getFallbackRecommendations(): Promise<string[]> {
     try {
       console.log('Using fallback: getting first 10 phase2_movies');
       
@@ -142,7 +142,7 @@ export class RecommenderService {
   async checkHealth(): Promise<boolean> {
     return await recommendationAPI.checkHealth();
   }
-  async logRecommendation(sessionId: string, recommendedMovieIds: number[]) {
+  async logRecommendation(sessionId: string, recommendedMovieIds: string[]) {
     try {
       console.log('Recommendations for session', sessionId, ':', recommendedMovieIds);
       

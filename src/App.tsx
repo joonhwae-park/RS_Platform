@@ -203,12 +203,12 @@ function App() {
     }
   };
 
-  const handleTrailerStart = (movieId: number) => {
+  const handleTrailerStart = (movieId: string) => {
     const startTime = new Date().toISOString();
     setTrailerStartTimes(prev => new Map(prev).set(movieId, startTime));
   };
 
-  const handleTrailerEnd = async (movieId: number) => {
+  const handleTrailerEnd = async (movieId: string) => {
     const startTime = trailerStartTimes.get(movieId);
     if (!startTime || !sessionId || sessionId.startsWith('local_')) return;
 
@@ -543,7 +543,7 @@ function App() {
     }
   };
 
-  const handleRatingChange = useCallback(async (movieId: number, rating: number) => {
+  const handleRatingChange = useCallback(async (movieId: string, rating: number) => {
     setRatings(prev => {
       const existingIndex = prev.findIndex(r => r.movieId === movieId);
       let newRatings;
@@ -566,7 +566,7 @@ function App() {
     });
   }, [sessionId]);
 
-  const handleAdditionalRatingChange = useCallback(async (movieId: number, type: 'diversity' | 'novelty' | 'serendipity', value: number) => {
+  const handleAdditionalRatingChange = useCallback(async (movieId: string, type: 'diversity' | 'novelty' | 'serendipity', value: number) => {
     setRatings(prev => {
       const existingIndex = prev.findIndex(r => r.movieId === movieId);
       let newRatings;
@@ -590,7 +590,7 @@ function App() {
     });
   }, [sessionId]);
 
-  const getRating = (movieId: number) => {
+  const getRating = (movieId: string) => {
     return ratings.find(r => r.movieId === movieId) || { movieId, rating: -1 }; // Use -1 to indicate "not rated"
   };
 

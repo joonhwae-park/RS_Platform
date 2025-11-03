@@ -1,5 +1,5 @@
 export interface Movie {
-  id: number;
+  id: string;
   title: string;
   description: string;
   poster: string;
@@ -11,7 +11,7 @@ export interface Movie {
 }
 
 export interface Rating {
-  movieId: number;
+  movieId: string;
   rating: number;
   diversity?: number;
   novelty?: number;
@@ -50,7 +50,7 @@ export interface PhaseTransition {
 
 export interface TrailerView {
   sessionId: string;
-  movieId: number;
+  movieId: string;
   startTime: string;
   endTime?: string;
   duration?: number;

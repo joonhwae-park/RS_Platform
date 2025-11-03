@@ -15,8 +15,8 @@ interface MovieCardProps {
   onDiversityChange?: (rating: number) => void;
   onNoveltyChange?: (rating: number) => void;
   onSerendipityChange?: (rating: number) => void;
-  onTrailerStart?: (movieId: number) => void;
-  onTrailerEnd?: (movieId: number) => void;
+  onTrailerStart?: (movieId: string) => void;
+  onTrailerEnd?: (movieId: string) => void;
 }
 
 export const MovieCard: React.FC<MovieCardProps> = ({
