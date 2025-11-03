@@ -127,10 +127,10 @@ def load_svd():
         global_mean_path = f"{SVD_DIR}/global_mean.json"
         if os.path.exists(global_mean_path):
             logger.info(f"Loading global mean from {global_mean_path}")
-            MU = json.load(open(global_mean_path)).get("mu", 7.31)
+            MU = json.load(open(global_mean_path)).get("mu", 7.29)
         else:
-            logger.warning(f"Global mean file not found at {global_mean_path}, using default 7.31")
-            MU = 7.31
+            logger.warning(f"Global mean file not found at {global_mean_path}, using default 7.29")
+            MU = 7.29
         
         # Load regularization parameter
         lambda_path = f"{SVD_DIR}/lambda.json"
@@ -293,8 +293,8 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
             # Use integer format for display since user ratings are integers
             history_str += f"movie_{hist_mid}:{int(hist_rating)}, "
         history_str = history_str.rstrip(", ")
-        return f"{history_str}. {base_prompt} (0 to 10, precise decimal allowed)"
-    return f"{base_prompt} (0 to 10, precise decimal allowed)"
+        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest, precise decimal allowed)"
+    return f"{base_prompt} (0 being lowest and 10 being highest, precise decimal allowed)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
