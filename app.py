@@ -73,7 +73,7 @@ def map_history_for_p5(history: List[Dict], max_n: int = HISTORY_MAX_TRAIN) -> L
         internal = map_movie_for_p5(ext)
         if internal is None:
             continue
-        out.append({"movie_id": internal, "rating": float(h.get("rating", 0.0))})
+        out.append({"movie_id": internal, "ratings": float(h.get("rating", 0.0))})
     return out
 
 # ===================== Client / App =====================
@@ -171,20 +171,15 @@ def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
     return p_u.astype("float32")
 
 def score_candidates_svd(p_u: np.ndarray, cand_ids: List[str]) -> List[Tuple[str, float]]:
-    pairs = [(str(cid), IDX.get(str(cid))) for cid in cand_ids]
-    pairs = [(cid, ix) for cid, ix in pairs if ix is not None]
-    if not pairs:
-        logger.warning("No valid candidate IDs found for SVD scoring")
-        return []
-
+    pairs = [(cid, IDX.get(cid)) for cid in cand_ids]
+    pairs = [(cid, ix) for cid, ix in pairs if ix is not None]
+    if not pairs:
+        logger.warning("No valid candidate IDs found for SVD scoring")
+        return []
     ix = np.array([ix for _, ix in pairs], dtype=int)
-
-    dot_product = (V[ix, :] @ p_u).astype("float32")
-    
-    scores = MU + ITEM_BIAS[ix] + dot_product
-    
+    scores = (V[ix, :] @ p_u).astype("float32")
     logger.info(f"SVD scored {len(pairs)} candidates")
-    return [(cid, float(s)) for (cid, _), s in zip(pairs, scores)]
+    return [(cid, float(s)) for (cid, _), s in zip(pairs, scores)]
 
 # ===================== P5 =========================
 sys.path.extend([P5_ROOT, os.path.join(P5_ROOT, "src")])
@@ -485,13 +480,20 @@ def rows_from_scored(session_id: str, model: str, scored: List[Tuple[str, float]
 def upsert_rows(rows: List[Dict]):
     if rows:
         try:
-            logger.info(f"Inserting {len(rows)} recommendation rows to database")
-            # Note: Old recommendations already deleted at the start of /recommend endpoint
-            # So we can directly insert new rows here
+            logger.info(f"Upserting {len(rows)} recommendation rows to database")
+            # Delete existing recommendations for this session/model/phase before inserting new ones
+            if rows:
+                session_id = rows[0]["session_id"]
+                model = rows[0]["model"]
+                phase = rows[0]["phase"]
+                sb.table("recommendations").delete().eq("session_id", session_id).eq("model", model).eq("phase", phase).execute()
+                logger.info(f"Deleted existing {model} recommendations for session {session_id}")
+
+            # Now insert the new rows
             sb.table("recommendations").insert(rows).execute()
             logger.info("Recommendation rows inserted successfully")
         except Exception as e:
-            logger.error(f"Failed to insert recommendation rows: {e}")
+            logger.error(f"Failed to upsert recommendation rows: {e}")
             raise
 
 # ===================== API =====================
@@ -584,12 +586,6 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         logger.warning("P5 model not fully loaded, will use SVD-only recommendations")
 
     try:
-        # 0) Delete ALL old recommendations for this session+phase before generating new ones
-        # This prevents stale recommendations from being shown if the frontend fetches before backend completes
-        logger.info(f"Step 0: Deleting old recommendations for session {req.session_id}, phase {req.phase}")
-        sb.table("recommendations").delete().eq("session_id", req.session_id).eq("phase", req.phase).execute()
-        logger.info("Old recommendations deleted successfully")
-
         # 1) Input acquisition
         logger.info("Step 1: Acquiring input data")
         hist = get_history(req.session_id)
@@ -618,21 +614,8 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 hist_mapped = map_history_for_p5(hist, max_n=HISTORY_MAX_TRAIN)
                 logger.info(f"Mapped {len(hist_mapped)} history items for P5")
 
-                # Create base model from mvt_aug_epoch10.pth weights
                 base = create_per_request_base()
-                logger.info("Base P5 model created with pretrained weights")
-
-                # Attach soft prompt adapter (PEFT)
-                logger.info("Attaching soft prompt adapter to model")
-                per_user_model = attach_soft_prompt(base, TOKENIZER)
-                logger.info("Soft prompt adapter attached")
-
-                # SOFT PROMPT ACTIVATED: Fine-tune the soft prompt on user's history
-                logger.info("Step 3.5: Fine-tuning soft prompt on user history")
-                finetune_soft_prompt(per_user_model, TOKENIZER, req.session_id, hist_mapped)
-                logger.info("Soft prompt fine-tuning completed")
-
-                per_user_model.eval()
+                base.eval()
 
                 # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
                 logger.info("Step 4: P5 reranking of SVD top candidates")
@@ -644,7 +627,7 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
 
                 if pairs:
                     mapped_ids = [internal for _, internal in pairs]
-                    p5_scores = p5_score_candidates_mapped(per_user_model, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
+                    p5_scores = p5_score_candidates_mapped(base, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
                     # Pair score with external movie_id
                     p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
                 else:
