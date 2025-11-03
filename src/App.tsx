@@ -290,19 +290,22 @@ function App() {
     return newSessionId;
   };
 
-  const fetchMovies = async (type: 'initial' | 'recommended', providedSessionId?: string) => {
+  const fetchMovies = async (type: 'initial' | 'recommended', providedSessionId?: string, recommendedIds?: string[]) => {
     const currentSessionId = providedSessionId || sessionId;
-    
+
     console.log('=== FETCH MOVIES START ===');
     console.log('Fetching movies of type:', type);
     console.log('Current phase:', phase);
     console.log('Session ID:', currentSessionId);
-    
+    if (recommendedIds) {
+      console.log('Using provided movie IDs:', recommendedIds);
+    }
+
     setLoadingMovies(true);
     setErrorMovies(null);
-    
+
     try {
-      
+
       if (type === 'initial') {
         console.log('Fetching initial movies from movies table...');
         // Fetch initial movies (not recommended) - now 30 movies
@@ -342,45 +345,52 @@ function App() {
         console.log('=== INITIAL MOVIES SET SUCCESSFULLY ===');
       } else {
         console.log('=== FETCHING RECOMMENDED MOVIES ===');
-        // Use recommender algorithm to get personalized recommendations
+        // Use provided movie IDs or fetch from database
         if (currentSessionId) {
-          console.log('Requesting recommendations for session:', currentSessionId);
-          console.log('Current ratings count:', ratings.length);
-          
-          const recommendedIds = await recommenderService.generateRecommendations(currentSessionId, ratings);
-          
-          console.log('Received recommended IDs:', recommendedIds);
-          
-          if (recommendedIds.length > 0) {
+          let movieIdsToFetch: string[] = [];
+
+          if (recommendedIds && recommendedIds.length > 0) {
+            // Use movie IDs provided from API response
+            console.log('Using movie IDs from API response:', recommendedIds);
+            movieIdsToFetch = recommendedIds;
+          } else {
+            // Fallback: query database for recommendations
+            console.log('No provided IDs, querying database for recommendations');
+            console.log('Current ratings count:', ratings.length);
+            movieIdsToFetch = await recommenderService.generateRecommendations(currentSessionId, ratings);
+            console.log('Received recommended IDs from database:', movieIdsToFetch);
+          }
+
+          if (movieIdsToFetch.length > 0) {
             console.log('Fetching movie details for recommended IDs...');
             const { data, error } = await supabase
               .from('phase2_movies')
               .select('*')
-              .in('id', recommendedIds);
+              .in('id', movieIdsToFetch);
 
             if (error) {
               console.error('Error fetching recommended movies:', error);
               throw error;
             }
-            
-            if (data && recommendedIds.length > 0) {
+
+            if (data && movieIdsToFetch.length > 0) {
               // Sort movies according to recommendation order
-              const sortedMovies = recommendedIds.map(id => 
+              const sortedMovies = movieIdsToFetch.map(id =>
                 data.find(movie => movie.id === id)
               ).filter(Boolean);
-              
+
               console.log('Recommended movies sorted:', sortedMovies.length);
               console.log('Movie titles:', sortedMovies.map(m => m.title));
-            
+
               // Log the recommendation for analysis
-              await recommenderService.logRecommendation(currentSessionId, recommendedIds);
-            
+              await recommenderService.logRecommendation(currentSessionId, movieIdsToFetch);
+
               // Update poster URLs to use Supabase storage
               const moviesWithStoragePoster = sortedMovies.map(movie => ({
                 ...movie,
                 poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
               }));
-            
+
               console.log('✅ Final recommended movies set:', moviesWithStoragePoster.length);
               setCurrentMovies(moviesWithStoragePoster);
             } else {
@@ -664,6 +674,8 @@ function App() {
     setIsGeneratingRecommendations(true);
 
     try {
+      let recommendedMovieIds: string[] | null = null;
+
       // First, trigger recommendation generation via the API
       if (sessionId && !sessionId.startsWith('local_')) {
         console.log('Triggering recommendation generation...');
@@ -676,13 +688,12 @@ function App() {
           console.warn('API health check failed - proceeding with fallback');
         }
 
-        const success = await recommenderService.triggerRecommendationGeneration(sessionId);
+        recommendedMovieIds = await recommenderService.triggerRecommendationGeneration(sessionId);
 
-        if (success) {
-          console.log('✅ Recommendation generation successful');
+        if (recommendedMovieIds) {
+          console.log('✅ Recommendation generation successful, received movie IDs:', recommendedMovieIds);
         } else {
-          console.warn('❌ Recommendation generation failed or API not available, proceeding with fallback');
-          console.log('Will use fallback recommendations from phase2_movies table');
+          console.warn('❌ Recommendation generation failed or API not available, will try database fallback');
         }
       } else {
         console.log('Using local session or no session, skipping API call');
@@ -692,8 +703,14 @@ function App() {
       await recordPhaseTransition('choice', 'recommendation');
 
       // Fetch recommended movies BEFORE changing the phase
-      // This ensures the correct movies are ready before the UI switches
-      await fetchMovies('recommended');
+      // If we have movie IDs from API, use them directly; otherwise query database
+      if (recommendedMovieIds && recommendedMovieIds.length > 0) {
+        console.log('Using movie IDs from API response');
+        await fetchMovies('recommended', sessionId, recommendedMovieIds);
+      } else {
+        console.log('No movie IDs from API, fetching from database');
+        await fetchMovies('recommended', sessionId);
+      }
 
       // Only change phase after movies are loaded
       setPhase('recommendation');

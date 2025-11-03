@@ -18,24 +18,34 @@ export interface RecommenderConfig {
 export class RecommenderService {
   /**
    * Trigger recommendation generation via the Cloud Run API
+   * Returns the movie IDs from the API response in display order
    */
-  async triggerRecommendationGeneration(sessionId: string): Promise<boolean> {
+  async triggerRecommendationGeneration(sessionId: string): Promise<string[] | null> {
     try {
       console.log('Triggering recommendation generation for session:', sessionId);
       console.log('Environment check - API URL configured:', !!import.meta.env.VITE_RECOMMENDATION_API_URL);
-      
+
       const result = await recommendationAPI.generateRecommendations(sessionId);
-      
-      if (result) {
+
+      if (result && result.display_sequence) {
         console.log('Recommendations generated successfully:', result);
-        return true;
+
+        // Extract movie IDs from display_sequence in order
+        // display_sequence is Array<[model, movie_id, display_order]>
+        // Sort by display_order and extract movie_id
+        const movieIds = result.display_sequence
+          .sort((a, b) => a[2] - b[2]) // Sort by display_order (index 2)
+          .map(item => item[1]); // Extract movie_id (index 1)
+
+        console.log('Extracted movie IDs from API response:', movieIds);
+        return movieIds;
       } else {
-        console.warn('Failed to generate recommendations via API');
-        return false;
+        console.warn('Failed to generate recommendations via API or no display_sequence returned');
+        return null;
       }
     } catch (error) {
       console.error('Error triggering recommendation generation:', error);
-      return false;
+      return null;
     }
   }
 
@@ -49,10 +59,15 @@ export class RecommenderService {
     try {
       console.log('Reading recommendations from database for session:', sessionId);
 
+      // Add initial delay to allow database write to settle after backend API completes
+      // This handles database replication lag and connection pooling delays
+      console.log('Waiting for database replication to settle...');
+      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second initial delay
+
       // Retry logic to handle backend processing time and database replication lag
       // Try up to 5 times with longer delays to ensure backend completes
       const maxRetries = 5;
-      const retryDelay = 1000; // 1000ms between retries (backend needs time to generate recommendations)
+      const retryDelay = 1500; // 1500ms between retries (increased from 1000ms)
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`Attempt ${attempt}/${maxRetries} to fetch recommendations`);
