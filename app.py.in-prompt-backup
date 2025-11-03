@@ -615,12 +615,6 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 logger.info(f"Mapped {len(hist_mapped)} history items for P5")
 
                 base = create_per_request_base()
-
-                # SOFT PROMPT ACTIVATED: Fine-tune the model on user's history
-                logger.info("Step 3.5: Fine-tuning soft prompt on user history")
-                finetune_soft_prompt(base, TOKENIZER, req.session_id, hist_mapped)
-                logger.info("Soft prompt fine-tuning completed")
-
                 base.eval()
 
                 # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
