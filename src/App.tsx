@@ -691,14 +691,13 @@ function App() {
       console.log('Proceeding to recommendation phase...');
       await recordPhaseTransition('choice', 'recommendation');
 
-      // Clear current movies and set loading state before changing phase
-      // This prevents showing Phase 1 movies while Phase 2 movies are loading
-      setCurrentMovies([]);
-      setLoadingMovies(true);
+      // Fetch recommended movies BEFORE changing the phase
+      // This ensures the correct movies are ready before the UI switches
+      await fetchMovies('recommended');
 
+      // Only change phase after movies are loaded
       setPhase('recommendation');
       await updateSessionPhase('recommendation');
-      await fetchMovies('recommended');
       console.log('=== RECOMMENDATION PHASE STARTED ===');
     } finally {
       setIsGeneratingRecommendations(false);

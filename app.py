@@ -290,21 +290,24 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
         for h in history[-30:]:
             hist_mid = str(h.get("movie_id", "unknown"))
             hist_rating = float(h.get("rating", 0.0))  # Fixed: was "ratings" (plural)
-            history_str += f"movie_{hist_mid}:{hist_rating:.1f}, "
+            # Use integer format for display since user ratings are integers
+            history_str += f"movie_{hist_mid}:{int(hist_rating)}, "
         history_str = history_str.rstrip(", ")
-        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest)"
-    return f"{base_prompt} (0 being lowest and 10 being highest)"
+        return f"{history_str}. {base_prompt} (0 to 10, precise decimal allowed)"
+    return f"{base_prompt} (0 to 10, precise decimal allowed)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
     returns list of (src_prompt, tgt_text) where tgt_text is like '4.0'
+    For each known rating, we create the training example with exact integer rating
     """
     exs = []
     for h in history[:HISTORY_MAX_TRAIN]:
         mid = str(h["movie_id"])
-        rating = float(h["ratings"])
+        rating = float(h["rating"])  # Fixed: was "ratings" (plural)
         src = make_p5_prompt(session_id, mid, history)
-        tgt = f"{rating:.1f}"
+        # Keep integer format for known ratings
+        tgt = f"{int(rating)}"
         exs.append((src, tgt))
     return exs
 
@@ -359,16 +362,24 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
     res: List[float] = []
     texts = [make_p5_prompt(session_id, mid, history_mapped) for mid in mapped_ids]
     logger.info(f"P5 scoring {len(texts)} candidates for session {session_id}")
-    
+
     for s in range(0, len(texts), P5_BATCH):
         batch = texts[s:s+P5_BATCH]
         enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
         enc = {k: v.to(DEVICE) for k, v in enc.items()}
-        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
+        # Add temperature and do_sample for more varied outputs
+        out = model.generate(
+            **enc,
+            max_length=P5_GEN_MAX_LEN,
+            num_beams=1,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9
+        )
         dec = tokenizer.batch_decode(out, skip_special_tokens=True)
         for txt in dec:
             res.append(_first_float(txt, default=-1.0))
-    
+
     logger.info(f"P5 scoring completed, generated {len(res)} scores")
     return res
 
@@ -595,13 +606,13 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
             logger.error("No candidates found in phase2_movies")
             raise HTTPException(400, "No candidates found for phase2_movies.")
 
-        # 2) SVD Top-100 Scores
+        # 2) SVD Top-200 Scores (increased from 100 for more P5 diversity)
         logger.info("Step 2: Computing SVD recommendations")
         p_u = infer_user_vec_svd(hist)
         svd_scored_all = score_candidates_svd(p_u, all_candidates) if p_u is not None else []
-        svd_top100 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:100]
-        svd_rows = rows_from_scored(req.session_id, "svd", svd_top100, topk=req.topk_per_model, phase=req.phase)
-        logger.info(f"SVD generated {len(svd_top100)} scored candidates")
+        svd_top200 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:200]
+        svd_rows = rows_from_scored(req.session_id, "svd", svd_top200, topk=req.topk_per_model, phase=req.phase)
+        logger.info(f"SVD generated {len(svd_top200)} scored candidates")
 
         # 3) P5 soft prompt: create per-user base + attach adapter + short finetuning
         p5_rows = []
@@ -614,10 +625,10 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 base = create_per_request_base()
                 base.eval()
 
-                # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
+                # 4) P5: Rerank SVD Top-200 (Using trained per_user model, increased for more diversity)
                 logger.info("Step 4: P5 reranking of SVD top candidates")
                 pairs = []  # [(ext_mid, internal_id)]
-                for ext_mid, _ in svd_top100:
+                for ext_mid, _ in svd_top200:
                     internal = map_movie_for_p5(ext_mid)
                     if internal is not None:
                         pairs.append((ext_mid, internal))
