@@ -73,7 +73,7 @@ def map_history_for_p5(history: List[Dict], max_n: int = HISTORY_MAX_TRAIN) -> L
         internal = map_movie_for_p5(ext)
         if internal is None:
             continue
-        out.append({"movie_id": internal, "ratings": float(h.get("rating", 0.0))})
+        out.append({"movie_id": internal, "rating": float(h.get("rating", 0.0))})
     return out
 
 # ===================== Client / App =====================
