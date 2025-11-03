@@ -171,13 +171,14 @@ def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
     return p_u.astype("float32")
 
 def score_candidates_svd(p_u: np.ndarray, cand_ids: List[str]) -> List[Tuple[str, float]]:
-    pairs = [(cid, IDX.get(cid)) for cid in cand_ids]
+    pairs = [(str(cid), IDX.get(str(cid))) for cid in cand_ids]
     pairs = [(cid, ix) for cid, ix in pairs if ix is not None]
     if not pairs:
         logger.warning("No valid candidate IDs found for SVD scoring")
         return []
     ix = np.array([ix for _, ix in pairs], dtype=int)
-    scores = (V[ix, :] @ p_u).astype("float32")
+    dot = (V[ix, :] @ p_u).astype("float32")
+    scores = MU + ITEM_BIAS[ix] + dot
     logger.info(f"SVD scored {len(pairs)} candidates")
     return [(cid, float(s)) for (cid, _), s in zip(pairs, scores)]
 
