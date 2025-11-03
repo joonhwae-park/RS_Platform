@@ -290,12 +290,12 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
         history_str = "Previous ratings: "
         for h in history[-30:]:
             hist_mid = str(h.get("movie_id", "unknown"))
-            hist_rating = float(h.get("rating", 0.0))  # Fixed: was "ratings" (plural)
+            hist_rating = float(h.get("rating", 0.0)) 
             # Use integer format for display since user ratings are integers
             history_str += f"movie_{hist_mid}:{int(hist_rating)}, "
         history_str = history_str.rstrip(", ")
-        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest, precise decimal allowed)"
-    return f"{base_prompt} (0 being lowest and 10 being highest, precise decimal allowed)"
+        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest)"
+    return f"{base_prompt} (0 being lowest and 10 being highest)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
@@ -305,7 +305,7 @@ def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple
     exs = []
     for h in history[:HISTORY_MAX_TRAIN]:
         mid = str(h["movie_id"])
-        rating = float(h["rating"])  # Fixed: was "ratings" (plural)
+        rating = float(h["rating"])
         src = make_p5_prompt(session_id, mid, history)
         # Keep integer format for known ratings
         tgt = f"{int(rating)}"
@@ -375,11 +375,8 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
             logger.info(f"Input tokens: {enc['input_ids'].shape}")
 
         out = model.generate(**enc, max_new_tokens=P5_GEN_MAX_LEN, num_beams=1, do_sample=False)
-
-        # Decode only the newly generated tokens (exclude input)
-        input_length = enc['input_ids'].shape[1]
-        generated_tokens = out[:, input_length:]
-        dec = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+        
+        dec = tokenizer.batch_decode(out, skip_special_tokens=True)
 
         # Log first batch outputs for debugging
         if s == 0 and len(dec) > 0:
