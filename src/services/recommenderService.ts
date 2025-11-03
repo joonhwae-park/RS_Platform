@@ -48,38 +48,59 @@ export class RecommenderService {
   ): Promise<number[]> {
     try {
       console.log('Reading recommendations from database for session:', sessionId);
-      
-      // Get recommendations from the recommendations table for THIS session only
-      // The backend ensures only one batch exists per session by:
-      // 1. Deleting old recommendations before inserting new ones (per session/model/phase)
-      // 2. Unique constraint on (session_id, movie_id, model, phase)
-      // Therefore, we can simply fetch all recommendations with display_order for this session
-      // and sort by display_order.
-      const { data: recommendations, error: fetchError } = await supabase
-        .from('recommendations')
-        .select('movie_id, display_order')
-        .eq('session_id', sessionId)
-        .not('display_order', 'is', null)
-        .order('display_order', { ascending: true });
 
-      if (fetchError) {
-        console.error('Error fetching recommendations from database:', fetchError);
-        return this.getFallbackRecommendations();
+      // Retry logic to handle potential database replication lag
+      // Try up to 3 times with delays
+      const maxRetries = 3;
+      const retryDelay = 500; // 500ms between retries
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`Attempt ${attempt}/${maxRetries} to fetch recommendations`);
+
+        // Get recommendations from the recommendations table for THIS session only
+        // The backend ensures only one batch exists per session by:
+        // 1. Deleting old recommendations before inserting new ones (per session/model/phase)
+        // 2. Unique constraint on (session_id, movie_id, model, phase)
+        // Therefore, we can simply fetch all recommendations with display_order for this session
+        // and sort by display_order.
+        const { data: recommendations, error: fetchError } = await supabase
+          .from('recommendations')
+          .select('movie_id, display_order')
+          .eq('session_id', sessionId)
+          .not('display_order', 'is', null)
+          .order('display_order', { ascending: true });
+
+        if (fetchError) {
+          console.error(`Attempt ${attempt}: Error fetching recommendations:`, fetchError);
+          if (attempt === maxRetries) {
+            return this.getFallbackRecommendations();
+          }
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        if (recommendations && recommendations.length > 0) {
+          // Extract movie IDs in display_order (should be unique due to unique constraint)
+          const movieIds = recommendations.map(r => r.movie_id);
+
+          console.log('✅ Recommendations loaded for session', sessionId, ':', movieIds);
+          console.log('Total recommendations with display_order:', recommendations.length);
+          console.log('Display orders:', recommendations.map(r => ({ id: r.movie_id, order: r.display_order })));
+
+          return movieIds;
+        }
+
+        // No recommendations found, wait and retry unless this is the last attempt
+        console.warn(`Attempt ${attempt}: No recommendations found, retrying...`);
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
       }
 
-      if (!recommendations || recommendations.length === 0) {
-        console.warn('No recommendations found in database for session:', sessionId);
-        return this.getFallbackRecommendations();
-      }
-
-      // Extract movie IDs in display_order (should be unique due to unique constraint)
-      const movieIds = recommendations.map(r => r.movie_id);
-
-      console.log('✅ Recommendations loaded for session', sessionId, ':', movieIds);
-      console.log('Total recommendations with display_order:', recommendations.length);
-      console.log('Display orders:', recommendations.map(r => ({ id: r.movie_id, order: r.display_order })));
-
-      return movieIds;
+      // All retries exhausted
+      console.warn('All retry attempts exhausted, using fallback');
+      return this.getFallbackRecommendations();
 
     } catch (error) {
       console.error('Error reading recommendations from database:', error);

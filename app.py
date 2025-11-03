@@ -367,15 +367,7 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
         batch = texts[s:s+P5_BATCH]
         enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
         enc = {k: v.to(DEVICE) for k, v in enc.items()}
-        # Add temperature and do_sample for more varied outputs
-        out = model.generate(
-            **enc,
-            max_length=P5_GEN_MAX_LEN,
-            num_beams=1,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9
-        )
+        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
         dec = tokenizer.batch_decode(out, skip_special_tokens=True)
         for txt in dec:
             res.append(_first_float(txt, default=-1.0))
@@ -606,13 +598,13 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
             logger.error("No candidates found in phase2_movies")
             raise HTTPException(400, "No candidates found for phase2_movies.")
 
-        # 2) SVD Top-200 Scores (increased from 100 for more P5 diversity)
+        # 2) SVD Top-100 Scores
         logger.info("Step 2: Computing SVD recommendations")
         p_u = infer_user_vec_svd(hist)
         svd_scored_all = score_candidates_svd(p_u, all_candidates) if p_u is not None else []
-        svd_top200 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:200]
-        svd_rows = rows_from_scored(req.session_id, "svd", svd_top200, topk=req.topk_per_model, phase=req.phase)
-        logger.info(f"SVD generated {len(svd_top200)} scored candidates")
+        svd_top100 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:100]
+        svd_rows = rows_from_scored(req.session_id, "svd", svd_top100, topk=req.topk_per_model, phase=req.phase)
+        logger.info(f"SVD generated {len(svd_top100)} scored candidates")
 
         # 3) P5 soft prompt: create per-user base + attach adapter + short finetuning
         p5_rows = []
@@ -625,10 +617,10 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 base = create_per_request_base()
                 base.eval()
 
-                # 4) P5: Rerank SVD Top-200 (Using trained per_user model, increased for more diversity)
+                # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
                 logger.info("Step 4: P5 reranking of SVD top candidates")
                 pairs = []  # [(ext_mid, internal_id)]
-                for ext_mid, _ in svd_top200:
+                for ext_mid, _ in svd_top100:
                     internal = map_movie_for_p5(ext_mid)
                     if internal is not None:
                         pairs.append((ext_mid, internal))
