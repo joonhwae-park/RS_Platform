@@ -614,14 +614,21 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
                 hist_mapped = map_history_for_p5(hist, max_n=HISTORY_MAX_TRAIN)
                 logger.info(f"Mapped {len(hist_mapped)} history items for P5")
 
+                # Create base model from mvt_aug_epoch10.pth weights
                 base = create_per_request_base()
+                logger.info("Base P5 model created with pretrained weights")
 
-                # SOFT PROMPT ACTIVATED: Fine-tune the model on user's history
+                # Attach soft prompt adapter (PEFT)
+                logger.info("Attaching soft prompt adapter to model")
+                per_user_model = attach_soft_prompt(base, TOKENIZER)
+                logger.info("Soft prompt adapter attached")
+
+                # SOFT PROMPT ACTIVATED: Fine-tune the soft prompt on user's history
                 logger.info("Step 3.5: Fine-tuning soft prompt on user history")
-                finetune_soft_prompt(base, TOKENIZER, req.session_id, hist_mapped)
+                finetune_soft_prompt(per_user_model, TOKENIZER, req.session_id, hist_mapped)
                 logger.info("Soft prompt fine-tuning completed")
 
-                base.eval()
+                per_user_model.eval()
 
                 # 4) P5: Rerank only SVD Top-100 (Using trained per_user model)
                 logger.info("Step 4: P5 reranking of SVD top candidates")
@@ -633,7 +640,7 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
 
                 if pairs:
                     mapped_ids = [internal for _, internal in pairs]
-                    p5_scores = p5_score_candidates_mapped(base, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
+                    p5_scores = p5_score_candidates_mapped(per_user_model, TOKENIZER, req.session_id, hist_mapped, mapped_ids)
                     # Pair score with external movie_id
                     p5_scored_on_100 = [(ext_mid, float(sc)) for (ext_mid, _), sc in zip(pairs, p5_scores)]
                 else:

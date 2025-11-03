@@ -29,8 +29,12 @@ cp app.py.in-prompt-backup app.py
 - **Method**: Fine-tunes soft prompt embeddings on user history
 - **Personalization**: Model adapts to user preferences via gradient updates
 - **Speed**: Slower (~10 training steps per request)
-- **Lines 617-624**: Creates base model → Fine-tunes → Uses for scoring
-- **Added**: Lines 619-622 call `finetune_soft_prompt()`
+- **Lines 617-643**: Creates base model → Attaches PEFT adapter → Fine-tunes → Uses for scoring
+- **Added**:
+  - Lines 617-619: Loads `mvt_aug_epoch10.pth` pretrained weights
+  - Lines 621-624: Attaches soft prompt adapter via PEFT
+  - Lines 626-629: Calls `finetune_soft_prompt()` on adapter
+  - Line 643: Uses `per_user_model` (not base) for scoring
 
 ## Testing Both Approaches
 
