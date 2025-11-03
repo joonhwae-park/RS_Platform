@@ -368,12 +368,29 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
         batch = texts[s:s+P5_BATCH]
         enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=P5_MAX_LEN)
         enc = {k: v.to(DEVICE) for k, v in enc.items()}
-        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
-        dec = tokenizer.batch_decode(out, skip_special_tokens=True)
+
+        # Log first batch for debugging
+        if s == 0 and len(batch) > 0:
+            logger.info(f"Sample prompt: {batch[0][:200]}...")
+            logger.info(f"Input tokens: {enc['input_ids'].shape}")
+
+        out = model.generate(**enc, max_new_tokens=P5_GEN_MAX_LEN, num_beams=1, do_sample=False)
+
+        # Decode only the newly generated tokens (exclude input)
+        input_length = enc['input_ids'].shape[1]
+        generated_tokens = out[:, input_length:]
+        dec = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+
+        # Log first batch outputs for debugging
+        if s == 0 and len(dec) > 0:
+            logger.info(f"Sample generated outputs (first 3): {dec[:3]}")
+
         for txt in dec:
-            res.append(_first_float(txt, default=-1.0))
+            score = _first_float(txt, default=-1.0)
+            res.append(score)
 
     logger.info(f"P5 scoring completed, generated {len(res)} scores")
+    logger.info(f"Score distribution: min={min(res) if res else 'N/A'}, max={max(res) if res else 'N/A'}, mean={sum(res)/len(res) if res else 'N/A'}")
     return res
 
 # ===================== Supabase I/O =====================
