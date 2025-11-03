@@ -49,24 +49,25 @@ export class RecommenderService {
     try {
       console.log('Reading recommendations from database for session:', sessionId);
 
-      // Retry logic to handle potential database replication lag
-      // Try up to 3 times with delays
-      const maxRetries = 3;
-      const retryDelay = 500; // 500ms between retries
+      // Retry logic to handle backend processing time and database replication lag
+      // Try up to 5 times with longer delays to ensure backend completes
+      const maxRetries = 5;
+      const retryDelay = 1000; // 1000ms between retries (backend needs time to generate recommendations)
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         console.log(`Attempt ${attempt}/${maxRetries} to fetch recommendations`);
 
-        // Get recommendations from the recommendations table for THIS session only
+        // Get recommendations from the recommendations table for THIS session AND phase
         // The backend ensures only one batch exists per session by:
         // 1. Deleting old recommendations before inserting new ones (per session/model/phase)
         // 2. Unique constraint on (session_id, movie_id, model, phase)
-        // Therefore, we can simply fetch all recommendations with display_order for this session
+        // We fetch only Phase 2 recommendations with display_order for this session
         // and sort by display_order.
         const { data: recommendations, error: fetchError } = await supabase
           .from('recommendations')
           .select('movie_id, display_order')
           .eq('session_id', sessionId)
+          .eq('phase', 2)
           .not('display_order', 'is', null)
           .order('display_order', { ascending: true });
 

@@ -480,20 +480,13 @@ def rows_from_scored(session_id: str, model: str, scored: List[Tuple[str, float]
 def upsert_rows(rows: List[Dict]):
     if rows:
         try:
-            logger.info(f"Upserting {len(rows)} recommendation rows to database")
-            # Delete existing recommendations for this session/model/phase before inserting new ones
-            if rows:
-                session_id = rows[0]["session_id"]
-                model = rows[0]["model"]
-                phase = rows[0]["phase"]
-                sb.table("recommendations").delete().eq("session_id", session_id).eq("model", model).eq("phase", phase).execute()
-                logger.info(f"Deleted existing {model} recommendations for session {session_id}")
-
-            # Now insert the new rows
+            logger.info(f"Inserting {len(rows)} recommendation rows to database")
+            # Note: Old recommendations already deleted at the start of /recommend endpoint
+            # So we can directly insert new rows here
             sb.table("recommendations").insert(rows).execute()
             logger.info("Recommendation rows inserted successfully")
         except Exception as e:
-            logger.error(f"Failed to upsert recommendation rows: {e}")
+            logger.error(f"Failed to insert recommendation rows: {e}")
             raise
 
 # ===================== API =====================
@@ -586,6 +579,12 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         logger.warning("P5 model not fully loaded, will use SVD-only recommendations")
 
     try:
+        # 0) Delete ALL old recommendations for this session+phase before generating new ones
+        # This prevents stale recommendations from being shown if the frontend fetches before backend completes
+        logger.info(f"Step 0: Deleting old recommendations for session {req.session_id}, phase {req.phase}")
+        sb.table("recommendations").delete().eq("session_id", req.session_id).eq("phase", req.phase).execute()
+        logger.info("Old recommendations deleted successfully")
+
         # 1) Input acquisition
         logger.info("Step 1: Acquiring input data")
         hist = get_history(req.session_id)
