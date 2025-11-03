@@ -289,7 +289,7 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
         history_str = "Previous ratings: "
         for h in history[-30:]:
             hist_mid = str(h.get("movie_id", "unknown"))
-            hist_rating = float(h.get("ratings", 0.0))
+            hist_rating = float(h.get("rating", 0.0))  # Fixed: was "ratings" (plural)
             history_str += f"movie_{hist_mid}:{hist_rating:.1f}, "
         history_str = history_str.rstrip(", ")
         return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest)"
