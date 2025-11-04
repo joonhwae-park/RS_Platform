@@ -403,10 +403,10 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
                   <label key={option} className="flex flex-col items-center">
                     <input
                       type="radio"
-                      name="diversityAttitude"
+                      name="serendipityAttitude"
                       value={option}
-                     checked={formData.serendipityAttitude === option}
-                     onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude: e.target.value }))}
+                      checked={formData.serendipityAttitude === option}
+                      onChange={(e) => setFormData(prev => ({ ...prev, serendipityAttitude: e.target.value }))}
                       className="mb-1 text-amber-500 focus:ring-amber-500"
                     />
                     <span className="text-gray-300 text-sm">{option}</span>

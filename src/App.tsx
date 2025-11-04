@@ -908,55 +908,65 @@ function App() {
           )
         ) : (
           <>
-            <div className="mb-8">
+            {/* Sticky Progress Bar */}
+            <div className="sticky top-[73px] z-40 bg-gray-950 pb-4 -mx-4 px-4 pt-4 border-b border-gray-800">
               <ProgressBar
                 current={getPhaseSpecificRatingsCount()}
                 total={currentMovies.length}
                 minimum={phase === 'initial' ? minimumRatingsRequired : undefined}
                 label={
-                  phase === 'initial' 
-                    ? 'Initial Movie Ratings Progress' 
+                  phase === 'initial'
+                    ? 'Initial Movie Ratings Progress'
                     : 'Recommendation Ratings Progress'
                 }
               />
-              
-              {phase === 'initial' && canProceedToChoice() && (
-                <div className="text-center mb-6">
-                  <button
-                    onClick={() => {
-                      recordPhaseTransition('initial', 'choice');
-                      setPhase('choice');
-                    }}
-                    className="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
-                  >
-                    Continue to Next Step
-                  </button>
-                </div>
-              )}
-
-              {phase === 'recommendation' && (
-                <div className="text-center mb-6">
-                  <button
-                    onClick={handleFinishAttempt}
-                    className="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
-                  >
-                    Finish Study
-                  </button>
-                  
-                  {incompleteRatings.length > 0 && (
-                    <div className="mt-4 p-4 bg-red-900 border border-red-500 rounded-lg">
-                      <p className="text-red-400 font-semibold mb-2">
-                        Please complete all ratings before finishing the study.
-                      </p>
-                      <p className="text-red-300 text-sm">
-                        Missing ratings for {incompleteRatings.length} movie(s). 
-                        Movies with incomplete ratings are highlighted with red borders below.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* Trailer Hint Message */}
+            <div className="text-center mb-6 mt-6">
+              <p className="text-amber-400 text-sm flex items-center justify-center gap-2">
+                <span className="text-lg">🎬</span>
+                Click on a movie poster to watch its trailer
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            {phase === 'initial' && canProceedToChoice() && (
+              <div className="text-center mb-6">
+                <button
+                  onClick={() => {
+                    recordPhaseTransition('initial', 'choice');
+                    setPhase('choice');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  Continue to Next Step
+                </button>
+              </div>
+            )}
+
+            {phase === 'recommendation' && (
+              <div className="text-center mb-6">
+                <button
+                  onClick={handleFinishAttempt}
+                  className="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  Finish Study
+                </button>
+
+                {incompleteRatings.length > 0 && (
+                  <div className="mt-4 p-4 bg-red-900 border border-red-500 rounded-lg">
+                    <p className="text-red-400 font-semibold mb-2">
+                      Please complete all ratings before finishing the study.
+                    </p>
+                    <p className="text-red-300 text-sm">
+                      Missing ratings for {incompleteRatings.length} movie(s).
+                      Movies with incomplete ratings are highlighted with red borders below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {currentMovies.map((movie) => {
@@ -975,9 +985,9 @@ function App() {
                         setIncompleteRatings(prev => prev.filter(id => id !== movie.id));
                       }}
                       showAdditionalQuestions={phase === 'recommendation'}
-                      diversityRating={rating.diversity || -1}
-                      noveltyRating={rating.novelty || -1}
-                      serendipityRating={rating.serendipity || -1}
+                      diversityRating={rating.diversity ?? -1}
+                      noveltyRating={rating.novelty ?? -1}
+                      serendipityRating={rating.serendipity ?? -1}
                       onDiversityChange={(value) => {
                         handleAdditionalRatingChange(movie.id, 'diversity', value);
                         setIncompleteRatings(prev => prev.filter(id => id !== movie.id));
@@ -1003,9 +1013,22 @@ function App() {
                 <p className="text-gray-400 text-lg mb-4">
                   Rate at least {minimumRatingsRequired} movies to get personalized recommendations
                 </p>
-                <p className="text-amber-400 text-sm">
+                <p className="text-amber-400 text-sm mb-6">
                   {getValidRatingsCount()}/{minimumRatingsRequired} minimum ratings completed
                 </p>
+
+                {/* Duplicate button at bottom of Phase 1 */}
+                {canProceedToChoice() && (
+                  <button
+                    onClick={() => {
+                      recordPhaseTransition('initial', 'choice');
+                      setPhase('choice');
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
+                  >
+                    Continue to Next Step
+                  </button>
+                )}
               </div>
             )}
 
