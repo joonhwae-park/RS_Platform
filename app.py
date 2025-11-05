@@ -294,8 +294,8 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
             # Use integer format for display since user ratings are integers
             history_str += f"movie_{hist_mid}:{int(hist_rating)}, "
         history_str = history_str.rstrip(", ")
-        return f"{history_str}. {base_prompt} (0 being lowest and 10 being highest)"
-    return f"{base_prompt} (0 being lowest and 10 being highest)"
+        return f"{history_str}. {base_prompt} (0.0 being lowest and 10.0 being highest, decimals allowed)"
+    return f"{base_prompt} (0.0 being lowest and 10.0 being highest, decimals allowed)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
