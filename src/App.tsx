@@ -307,42 +307,57 @@ function App() {
     try {
 
       if (type === 'initial') {
-        console.log('Fetching initial movies from movies table...');
-        // Fetch initial movies (not recommended) - now 30 movies
-        const { data, error } = await supabase
-          .from('movies')
-          .select('*')
-          .order('id');
+        console.log('Selecting Phase 1 movies for session:', currentSessionId);
 
-        console.log('Database query result:', { data: data?.length || 0, error });
+        // Call the database function to select 30 Phase 1 movies
+        const { data: movieIds, error: selectError } = await supabase
+          .rpc('select_phase1_movies_for_session', { p_session_id: currentSessionId });
 
-        if (error) {
-          console.error('Error fetching initial movies:', error);
-          throw error;
+        if (selectError) {
+          console.error('Error selecting Phase 1 movies:', selectError);
+          throw selectError;
         }
-        
-        if (!data || data.length === 0) {
-          console.warn('No initial movies found in database');
-          setErrorMovies('No movies found in database. Please check your database connection.');
+
+        if (!movieIds || movieIds.length === 0) {
+          console.warn('No Phase 1 movies selected');
+          setErrorMovies('Failed to select movies. Please try again.');
           setCurrentMovies([]);
           return;
         }
 
-        console.log('Initial movies fetched:', data.length);
-        
-        // Shuffle the movies randomly
-        const shuffled = [...data].sort(() => Math.random() - 0.5);
+        console.log('Phase 1 movies selected:', movieIds.length);
+
+        // Fetch movie details for the selected IDs
+        const { data, error } = await supabase
+          .from('movies')
+          .select('*')
+          .in('id', movieIds);
+
+        if (error) {
+          console.error('Error fetching movie details:', error);
+          throw error;
+        }
+
+        if (!data || data.length === 0) {
+          console.warn('No movie details found');
+          setErrorMovies('Failed to fetch movie details. Please try again.');
+          setCurrentMovies([]);
+          return;
+        }
+
+        // Sort movies according to the order returned by the function
+        const sortedMovies = movieIds.map(id => data.find(movie => movie.id === id)).filter(Boolean);
 
         // Update poster URLs to use Supabase storage
-        const moviesWithStoragePoster = shuffled.map(movie => ({
+        const moviesWithStoragePoster = sortedMovies.map(movie => ({
           ...movie,
           poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
         }));
-        
-        console.log('Movies with updated posters:', moviesWithStoragePoster.length);
+
+        console.log('Phase 1 movies ready:', moviesWithStoragePoster.length);
         setCurrentMovies(moviesWithStoragePoster);
         setCurrentMoviesPhase('initial');
-        console.log('=== INITIAL MOVIES SET SUCCESSFULLY ===');
+        console.log('=== PHASE 1 MOVIES SET SUCCESSFULLY ===');
       } else {
         console.log('=== FETCHING RECOMMENDED MOVIES ===');
         // Use provided movie IDs or fetch from database

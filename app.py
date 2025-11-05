@@ -406,11 +406,40 @@ def get_history(session_id: str, limit: int = 50) -> List[Dict]:
         logger.error(f"Failed to fetch history for session {session_id}: {e}")
         return []
 
-def get_candidates(limit: int = 10000) -> List[str]:
+def get_phase1_movies(session_id: str) -> List[str]:
+    """
+    Get the list of Phase 1 movies for a given session.
+    These movies should be excluded from Phase 2 recommendations.
+    """
+    try:
+        logger.info(f"Fetching Phase 1 movies for session {session_id}")
+        r = sb.table("session_phase1_movies").select("movie_id").eq("session_id", session_id).execute()
+        phase1_movies = [str(row["movie_id"]) for row in (r.data or [])]
+        logger.info(f"Retrieved {len(phase1_movies)} Phase 1 movies to exclude")
+        return phase1_movies
+    except Exception as e:
+        logger.error(f"Failed to fetch Phase 1 movies: {e}")
+        return []
+
+def get_candidates(limit: int = 10000, exclude_movies: List[str] = None) -> List[str]:
+    """
+    Get candidate movies from phase2_movies, optionally excluding specific movies.
+
+    Args:
+        limit: Maximum number of candidates to fetch
+        exclude_movies: List of movie IDs to exclude (e.g., Phase 1 movies)
+    """
     try:
         logger.info("Fetching candidate movies from phase2_movies")
         r = sb.table("phase2_movies").select("id").limit(limit).execute()
         candidates = [str(row["id"]) for row in (r.data or [])]
+
+        if exclude_movies:
+            original_count = len(candidates)
+            candidates = [c for c in candidates if c not in exclude_movies]
+            excluded_count = original_count - len(candidates)
+            logger.info(f"Excluded {excluded_count} Phase 1 movies from candidates")
+
         logger.info(f"Retrieved {len(candidates)} candidate movies")
         return candidates
     except Exception as e:
@@ -607,11 +636,15 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
         if not hist:
             logger.error(f"No rating history found for session {req.session_id}")
             raise HTTPException(400, "No rating history for the given session_id.")
-        
-        all_candidates = get_candidates()
+
+        # Get Phase 1 movies to exclude from recommendations
+        phase1_movies = get_phase1_movies(req.session_id)
+        logger.info(f"Excluding {len(phase1_movies)} Phase 1 movies from recommendations")
+
+        all_candidates = get_candidates(exclude_movies=phase1_movies)
         if not all_candidates:
-            logger.error("No candidates found in phase2_movies")
-            raise HTTPException(400, "No candidates found for phase2_movies.")
+            logger.error("No candidates found in phase2_movies after exclusions")
+            raise HTTPException(400, "No candidates found for phase2_movies after excluding Phase 1 movies.")
 
         # 2) SVD Top-100 Scores
         logger.info("Step 2: Computing SVD recommendations")
