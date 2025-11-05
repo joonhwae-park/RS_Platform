@@ -867,6 +867,11 @@ function App() {
               <Film className="text-amber-500" size={32} />
               <h1 className="text-2xl font-bold text-white">CineRate</h1>
             </div>
+            <div className="flex items-center gap-2 text-amber-400 text-sm">
+              <span className="text-lg">🎬</span>
+              <span className="hidden sm:inline">Click on a movie poster to watch its trailer</span>
+              <span className="sm:hidden">Tap poster for trailer</span>
+            </div>
             <div className="text-amber-400 font-medium">
               {phase === 'initial' ? 'Rate Movies' : 'Rate Recommendations'}
             </div>
@@ -935,14 +940,6 @@ function App() {
                     : 'Recommendation Ratings Progress'
                 }
               />
-            </div>
-
-            {/* Trailer Hint Message */}
-            <div className="text-center mb-6 mt-6">
-              <p className="text-amber-400 text-sm flex items-center justify-center gap-2">
-                <span className="text-lg">🎬</span>
-                Click on a movie poster to watch its trailer
-              </p>
             </div>
 
             {/* Action Buttons */}

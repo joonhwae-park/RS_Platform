@@ -135,14 +135,6 @@ export const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({ onComp
       newErrors.push('At least one movie genre preference is required');
     }
 
-    if (!formData.opennessToExperience) {
-      newErrors.push('Openness to experience question is required');
-    }
-
-    if (!formData.riskAversion) {
-      newErrors.push('Risk aversion question is required');
-    }
-
     if (!formData.movieExpertise) {
       newErrors.push('Movie expertise question is required');
     }
