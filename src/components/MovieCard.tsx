@@ -137,7 +137,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({
             <SelectRating
               rating={rating}
               onRatingChange={onRatingChange}
-            label={showAdditionalQuestions ? "* Your Rating" : "Your Rating"}
+            label={showAdditionalQuestions ? "* Your Rating for This Movie" : "Your Rating"}
             />
             
             {showAdditionalQuestions && (
