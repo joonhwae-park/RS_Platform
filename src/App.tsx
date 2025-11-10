@@ -541,11 +541,33 @@ function App() {
     if (!sessionId || sessionId.startsWith('local_')) return;
 
     try {
+      const updateData: any = { phase: newPhase };
+
+      // Record phase-specific start time
+      const timestamp = new Date().toISOString();
+      switch (newPhase) {
+        case 'intro':
+          updateData.intro_start_time = timestamp;
+          break;
+        case 'initial':
+          updateData.initial_start_time = timestamp;
+          break;
+        case 'choice':
+          updateData.choice_start_time = timestamp;
+          break;
+        case 'recommendation':
+          updateData.recommendation_start_time = timestamp;
+          break;
+        case 'questionnaire':
+          updateData.questionnaire_start_time = timestamp;
+          break;
+      }
+
       await supabase
         .from('user_sessions')
-        .update({ phase: newPhase })
+        .update(updateData)
         .eq('id', sessionId);
-      console.log('Session phase updated to:', newPhase);
+      console.log('Session phase updated to:', newPhase, 'with timestamp');
     } catch (error) {
       console.error('Error updating session phase:', error);
     }
@@ -687,6 +709,8 @@ function App() {
     console.log('Webhook secret configured:', !!import.meta.env.VITE_WEBHOOK_SECRET);
 
     setIsGeneratingRecommendations(true);
+    const loadingStartTime = Date.now();
+    const MINIMUM_LOADING_DURATION = 30000; // 30 seconds in milliseconds
 
     try {
       let recommendedMovieIds: string[] | null = null;
@@ -727,7 +751,18 @@ function App() {
         await fetchMovies('recommended', sessionId);
       }
 
-      // Only change phase after movies are loaded
+      // Ensure minimum loading duration of 30 seconds
+      const elapsedTime = Date.now() - loadingStartTime;
+      const remainingTime = MINIMUM_LOADING_DURATION - elapsedTime;
+
+      if (remainingTime > 0) {
+        console.log(`Loading completed in ${elapsedTime}ms, waiting additional ${remainingTime}ms to reach 30s minimum`);
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      } else {
+        console.log(`Loading took ${elapsedTime}ms (longer than 30s minimum)`);
+      }
+
+      // Only change phase after movies are loaded and minimum time elapsed
       setPhase('recommendation');
       await updateSessionPhase('recommendation');
       console.log('=== RECOMMENDATION PHASE STARTED ===');
@@ -867,8 +902,8 @@ function App() {
               <Film className="text-amber-500" size={32} />
               <h1 className="text-2xl font-bold text-white">CineRate</h1>
             </div>
-            <div className="flex items-center gap-2 text-amber-400 text-sm">
-              <span className="text-lg">🎬</span>
+            <div className="flex items-center gap-2 text-amber-400 text-base">
+              <span className="text-xl">🎬</span>
               <span className="hidden sm:inline">Click on a movie poster to watch its trailer</span>
               <span className="sm:hidden">Tap poster for trailer</span>
             </div>

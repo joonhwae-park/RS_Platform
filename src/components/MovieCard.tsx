@@ -142,12 +142,19 @@ export const MovieCard: React.FC<MovieCardProps> = ({
             
             {showAdditionalQuestions && (
               <>
+                <div className="mb-3 p-3 bg-gray-800 border border-gray-700 rounded-lg">
+                  <p className="text-amber-400 text-sm flex items-center gap-2">
+                    <Info size={18} className="text-amber-400 flex-shrink-0" />
+                    <span>Hover over the <Info size={16} className="inline-block text-gray-400 mx-1" /> icons to see definitions</span>
+                  </p>
+                </div>
+
                 <div className="space-y-4">
                   <div className="relative">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-amber-400 font-medium text-sm">* How diverse is this movie recommendation? (0 = not diverse, 10 = very diverse)</span>
                       <div className="relative group">
-                        <Info size={16} className="text-gray-400 hover:text-amber-400 cursor-help" />
+                        <Info size={20} className="text-gray-400 hover:text-amber-400 cursor-help" />
                         <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-64 z-50 shadow-xl">
                           How different is this recommended movie from other movies in this list?
                         </div>
@@ -164,7 +171,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-amber-400 font-medium text-sm">* How novel is this movie recommendation? (0 = not novel, 10 = very novel)</span>
                       <div className="relative group">
-                        <Info size={16} className="text-gray-400 hover:text-amber-400 cursor-help" />
+                        <Info size={20} className="text-gray-400 hover:text-amber-400 cursor-help" />
                         <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-64 z-50 shadow-xl">
                           How new, fresh, or unfamiliar is this movie to you?
                         </div>
@@ -181,7 +188,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-amber-400 font-medium text-sm">* How serendipitous is this movie recommendation? (0 = not serendipitous, 10 = very serendipitous)</span>
                       <div className="relative group">
-                        <Info size={16} className="text-gray-400 hover:text-amber-400 cursor-help" />
+                        <Info size={20} className="text-gray-400 hover:text-amber-400 cursor-help" />
                         <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-64 z-50 shadow-xl">
                           How surprising or unexpected is this recommended movie for you?
                         </div>
