@@ -9,7 +9,7 @@ import { Phase2CompletionModal } from './components/Phase2CompletionModal';
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 import { recommenderService } from './services/recommenderService';
 import { supabase } from './lib/supabase';
-import { Film, Loader2, AlertCircle } from 'lucide-react';
+import { Film, Loader2, AlertCircle, Info } from 'lucide-react';
 import { useMouseTracking } from './hooks/useMouseTracking';
 
 // Session persistence utilities
@@ -975,6 +975,16 @@ function App() {
                     : 'Recommendation Ratings Progress'
                 }
               />
+
+              {/* Phase 2 Notice about hover definitions */}
+              {phase === 'recommendation' && (
+                <div className="mt-4 p-3 bg-amber-900 bg-opacity-20 border border-amber-600 rounded-lg">
+                  <p className="text-amber-400 text-sm flex items-center gap-2">
+                    <Info size={18} className="text-amber-400 flex-shrink-0" />
+                    <span>Hover over the <Info size={16} className="inline-block text-gray-400 mx-1" /> icons to see definitions</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}

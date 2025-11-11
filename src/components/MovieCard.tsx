@@ -142,13 +142,6 @@ export const MovieCard: React.FC<MovieCardProps> = ({
             
             {showAdditionalQuestions && (
               <>
-                <div className="mb-3 p-3 bg-gray-800 border border-gray-700 rounded-lg">
-                  <p className="text-amber-400 text-sm flex items-center gap-2">
-                    <Info size={18} className="text-amber-400 flex-shrink-0" />
-                    <span>Hover over the <Info size={16} className="inline-block text-gray-400 mx-1" /> icons to see definitions</span>
-                  </p>
-                </div>
-
                 <div className="space-y-4">
                   <div className="relative">
                     <div className="flex items-center gap-2 mb-2">
