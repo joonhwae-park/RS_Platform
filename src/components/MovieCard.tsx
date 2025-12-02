@@ -166,7 +166,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({
                       <div className="relative group">
                         <Info size={20} className="text-gray-400 hover:text-amber-400 cursor-help" />
                         <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-64 z-50 shadow-xl">
-                          How new, fresh, or unfamiliar is this movie to you?
+                          How new or fresh is this movie to you?
                         </div>
                       </div>
                     </div>
@@ -183,7 +183,7 @@ export const MovieCard: React.FC<MovieCardProps> = ({
                       <div className="relative group">
                         <Info size={20} className="text-gray-400 hover:text-amber-400 cursor-help" />
                         <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-64 z-50 shadow-xl">
-                          How surprising or unexpected is this recommended movie for you?
+                          How pleasantly surprising or unexpected is this recommended movie for you?
                         </div>
                       </div>
                     </div>
