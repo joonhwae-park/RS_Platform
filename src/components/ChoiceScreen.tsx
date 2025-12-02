@@ -46,14 +46,14 @@ export const ChoiceScreen: React.FC<ChoiceScreenProps> = ({
                 <div className="bg-gray-900 p-4 rounded-lg">
                   <h4 className="text-lg font-semibold text-white mb-2">Novelty</h4>
                   <p className="text-gray-300">
-                    How new, fresh, or unfamiliar is this movie to you?
+                    How new or fresh is this movie to you?
                   </p>
                 </div>
 
                 <div className="bg-gray-900 p-4 rounded-lg">
                   <h4 className="text-lg font-semibold text-white mb-2">Serendipity</h4>
                   <p className="text-gray-300">
-                    How surprising or unexpected is this recommended movie for you?
+                    How pleasantly surprising or unexpected is this recommended movie for you?
                   </p>
                 </div>
               </div>
