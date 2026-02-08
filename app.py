@@ -1,10 +1,11 @@
-import os, sys, re, json, torch, numpy as np, random, logging
-from typing import List, Dict, Tuple, Optional
+import os, sys, re, json, torch, numpy as np, pandas as pd, random, logging
+from typing import List, Dict, Tuple, Optional, Any
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
 import threading
+from surprise import Dataset, Reader, SVD
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,7 +43,7 @@ SOFTPROMPT_BSZ = int(os.getenv("SOFTPROMPT_BSZ", "8"))
 SOFTPROMPT_INIT_TEXT = os.getenv("SOFTPROMPT_INIT_TEXT", "rating prediction")
 HISTORY_MAX_TRAIN = 30
 
-SVD_DIR = os.getenv("SVD_DIR", "/models/svd_5core")
+SVD_DIR = os.getenv("SVD_DIR", "/models/svd_surprise")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ============= datamaps (movie id mapping for P5) =============
@@ -90,97 +91,111 @@ app.add_middleware(
 )
 
 # ======================= SVD =======================
-V: Optional[np.ndarray] = None
-ITEM_IDS: Optional[np.ndarray] = None
-ITEM_BIAS: Optional[np.ndarray] = None
-MU: float = 0.0
-REG: float = 0.05
-IDX: Dict[str, int] = {}
+random.seed(2026)
+np.random.seed(2026)
 
-def load_svd():
-    global V, ITEM_IDS, ITEM_BIAS, MU, REG, IDX
-    try:
-        logger.info(f"Loading SVD model from {SVD_DIR}")
-        
-        # Load V matrix
-        v_path = f"{SVD_DIR}/V.npy"
-        logger.info(f"Loading V matrix from {v_path}")
-        V = np.load(v_path).astype("float32")
-        logger.info(f"V matrix loaded: shape {V.shape}")
-        
-        # Load item IDs
-        item_ids_path = f"{SVD_DIR}/item_ids.json"
-        logger.info(f"Loading item IDs from {item_ids_path}")
-        ITEM_IDS = np.array(json.load(open(item_ids_path)))
-        logger.info(f"Item IDs loaded: {len(ITEM_IDS)} items")
-        
-        # Load item bias
-        item_bias_path = f"{SVD_DIR}/item_bias.npy"
-        if os.path.exists(item_bias_path):
-            logger.info(f"Loading item bias from {item_bias_path}")
-            ITEM_BIAS = np.load(item_bias_path).astype("float32")
-        else:
-            logger.warning(f"Item bias file not found at {item_bias_path}, using zeros")
-            ITEM_BIAS = np.zeros(len(ITEM_IDS), dtype="float32")
-        
-        # Load global mean
-        global_mean_path = f"{SVD_DIR}/global_mean.json"
-        if os.path.exists(global_mean_path):
-            logger.info(f"Loading global mean from {global_mean_path}")
-            MU = json.load(open(global_mean_path)).get("mu", 7.29)
-        else:
-            logger.warning(f"Global mean file not found at {global_mean_path}, using default 7.29")
-            MU = 7.29
-        
-        # Load regularization parameter
-        lambda_path = f"{SVD_DIR}/lambda.json"
-        if os.path.exists(lambda_path):
-            logger.info(f"Loading regularization parameter from {lambda_path}")
-            REG = json.load(open(lambda_path)).get("reg", 0.05)
-        else:
-            logger.warning(f"Lambda file not found at {lambda_path}, using default 0.05")
-            REG = 0.05
-        
-        # Build index mapping
-        IDX = {str(mid): i for i, mid in enumerate(ITEM_IDS)}
-        logger.info(f"SVD model loaded successfully: MU={MU}, REG={REG}")
-        
-    except Exception as e:
-        logger.error(f"Failed to load SVD model: {e}")
-        raise
+SVD_5CORE_PATH = os.getenv("SVD_5CORE_PATH", f"{SVD_DIR}/ratings_5core.csv")
+SVD_HISTORY_PATH = os.getenv("SVD_HISTORY_PATH", f"{SVD_DIR}/lab_ratings.csv")
+SVD_HP_PATH = os.getenv("SVD_HP_PATH", f"{SVD_DIR}/svd_hyperparams.json")
 
-def infer_user_vec_svd(history: List[Dict]) -> Optional[np.ndarray]:
-    idxs, y = [], []
+SVD_RATING_SCALE = (0, 10)
+
+SURPRISE_BASE_RATINGS: Optional[pd.DataFrame] = None
+SURPRISE_HP: Dict[str, Any] = {}
+
+def _load_json_if_exists(path: str) -> Dict[str, Any]:
+    if path and os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    else:
+        print("!!! Missing svd_hyperparams.json !!!")
+        return {}
+
+def load_surprise_hparams() -> Dict[str, Any]:
+    hp = _load_json_if_exists(SVD_HP_PATH)
+    hp = {k: v for k, v in hp.items()}
+    return hp
+
+def load_surprise_base_ratings() -> pd.DataFrame:
+    if not os.path.exists(SVD_5CORE_PATH):
+        raise FileNotFoundError(f"ratings_5core.csv not found: {SVD_5CORE_PATH}")
+    if not os.path.exists(SVD_HISTORY_PATH):
+        raise FileNotFoundError(f"lab_ratings.csv not found: {SVD_HISTORY_PATH}")
+
+    df5 = pd.read_csv(SVD_5CORE_PATH, dtype={"MovieID": str})
+    df5 = df5.rename(columns={"UserID": "user", "MovieID": "item", "Rating": "rating"})
+    df5 = df5[["user", "item", "rating"]]
+
+    dfh = pd.read_csv(SVD_HISTORY_PATH, dtype={"item_id": str})
+    dfh = dfh.rename(columns={"user_id": "user", "item_id": "item"})
+    dfh = dfh[["user", "item", "rating"]]
+
+    df = pd.concat([df5, dfh], ignore_index=True)
+
+    df["user"] = df["user"].astype(str)
+    df["item"] = df["item"].astype(str)
+    df["rating"] = df["rating"].astype(float)
+
+    df = df.dropna(subset=["user", "item", "rating"])
+
+    return df
+
+def load_surprise_assets():
+    global SURPRISE_BASE_RATINGS, SURPRISE_HP
+    logger.info(f"Loading Surprise base ratings from: {SVD_5CORE_PATH} + {SVD_HISTORY_PATH}")
+    SURPRISE_BASE_RATINGS = load_surprise_base_ratings()
+    logger.info(f"Surprise base ratings loaded: rows={len(SURPRISE_BASE_RATINGS)}")
+
+    SURPRISE_HP = load_surprise_hparams()
+    logger.info(f"Surprise SVD hyperparams loaded: keys={list(SURPRISE_HP.keys())}")
+
+def _build_user_df(session_id: str, history: List[Dict]) -> pd.DataFrame:
+    rows = []
     for h in history:
-        mid = str(h.get("movie_id"))  # Ensure string type
+        mid = str(h.get("movie_id"))
         r = float(h.get("rating", 0.0))
-        ix = IDX.get(mid)
-        if ix is None:
-            continue
-        idxs.append(ix)
-        y.append(r - MU - ITEM_BIAS[ix])
-    if not idxs:
-        logger.warning("No valid movie IDs found in user history for SVD inference")
-        return None
-    V_R = V[idxs, :]
-    y = np.array(y, dtype="float32")
-    A = V_R.T @ V_R
-    A[np.diag_indices_from(A)] += REG
-    p_u = np.linalg.solve(A, V_R.T @ y)
-    logger.info(f"SVD user vector inferred from {len(idxs)} ratings")
-    return p_u.astype("float32")
+        rows.append({"user": str(session_id), "item": mid, "rating": r})
 
-def score_candidates_svd(p_u: np.ndarray, cand_ids: List[str]) -> List[Tuple[str, float]]:
-    pairs = [(str(cid), IDX.get(str(cid))) for cid in cand_ids]
-    pairs = [(cid, ix) for cid, ix in pairs if ix is not None]
-    if not pairs:
-        logger.warning("No valid candidate IDs found for SVD scoring")
+    dfu = pd.DataFrame(rows)
+
+    dfu["user"] = dfu["user"].astype(str)
+    dfu["item"] = dfu["item"].astype(str)
+    dfu["rating"] = dfu["rating"].astype(float)
+
+    return dfu
+
+def score_candidates_svd_surprise(session_id: str, history: List[Dict], cand_ids: List[str]) -> List[Tuple[str, float]]:
+
+    if SURPRISE_BASE_RATINGS is None:
+        raise RuntimeError("SURPRISE_BASE_RATINGS is not loaded. Call load_surprise_assets() at startup.")
+
+    dfu = _build_user_df(session_id, history)
+    if dfu.empty:
+        logger.warning("No user ratings available for Surprise SVD scoring")
         return []
-    ix = np.array([ix for _, ix in pairs], dtype=int)
-    dot = (V[ix, :] @ p_u).astype("float32")
-    scores = MU + ITEM_BIAS[ix] + dot
-    logger.info(f"SVD scored {len(pairs)} candidates")
-    return [(cid, float(s)) for (cid, _), s in zip(pairs, scores)]
+
+    df_all = pd.concat([SURPRISE_BASE_RATINGS, dfu], ignore_index=True)
+
+    reader = Reader(rating_scale=SVD_RATING_SCALE)
+    data = Dataset.load_from_df(df_all[["user", "item", "rating"]], reader)
+    trainset = data.build_full_trainset()
+    
+    logger.info(f"Fitting SVD (params - {SURPRISE_HP})")
+    algo = SVD(**(SURPRISE_HP or {}))
+    algo.fit(trainset)
+
+    out: List[Tuple[str, float]] = []
+    uid = str(session_id)
+
+    for cid in cand_ids:
+        iid = str(cid)
+        est = algo.predict(uid, iid).est
+        out.append((iid, float(est)))
+
+    logger.info(f"Surprise SVD scored {len(out)} candidates")
+    return out
+
+
 
 # ===================== P5 =========================
 sys.path.extend([P5_ROOT, os.path.join(P5_ROOT, "src")])
@@ -239,7 +254,6 @@ def load_base_state_once():
 
 def create_per_request_base():
     cfg = create_config_eval()
-    # Load from cached PyTorch weights only (no network calls to HuggingFace)
     model = P5Pretraining.from_pretrained(P5_BACKBONE, config=cfg, local_files_only=True).to(DEVICE)
     model.resize_token_embeddings(TOKENIZER.vocab_size)
     model.tokenizer = TOKENIZER
@@ -566,10 +580,9 @@ def _heavy_init():
         READY.update(ok=True, msg="ready_basic")
         logger.info("Basic initialization complete, service is ready")
 
-        # Load models in order of importance
-        logger.info("Loading SVD model (critical)...")
-        load_svd()
-        logger.info("SVD model loaded")
+        logger.info("Loading Surprise SVD assets (critical)...")
+        load_surprise_assets()
+        logger.info("Surprise SVD assets loaded")
 
         logger.info("Loading datamaps (critical)...")
         load_datamaps()
@@ -608,7 +621,7 @@ def health():
         "device": DEVICE,
         "p5_ckpt": P5_CKPT,
         "svd_dir": SVD_DIR,
-        "n_items": int(len(ITEM_IDS) if ITEM_IDS is not None else 0)
+        "n_items": int(SURPRISE_BASE_RATINGS["item"].nunique() if SURPRISE_BASE_RATINGS is not None else 0)
     }
 
 @app.post("/recommend")
@@ -648,8 +661,7 @@ def recommend(req: RecReq, x_webhook_secret: Optional[str] = Header(None)):
 
         # 2) SVD Top-100 Scores
         logger.info("Step 2: Computing SVD recommendations")
-        p_u = infer_user_vec_svd(hist)
-        svd_scored_all = score_candidates_svd(p_u, all_candidates) if p_u is not None else []
+        svd_scored_all = score_candidates_svd_surprise(req.session_id, hist, all_candidates)
         svd_top100 = sorted(svd_scored_all, key=lambda x: x[1], reverse=True)[:100]
         svd_rows = rows_from_scored(req.session_id, "svd", svd_top100, topk=req.topk_per_model, phase=req.phase)
         logger.info(f"SVD generated {len(svd_top100)} scored candidates")
