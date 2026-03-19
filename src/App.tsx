@@ -79,6 +79,7 @@ function App() {
   const [phase1BatchNumber, setPhase1BatchNumber] = useState<number>(1);
   const [isLoadingMoreMovies, setIsLoadingMoreMovies] = useState<boolean>(false);
   const MAX_PHASE1_BATCHES = 4;
+  const MAX_PHASE1_MOVIES = 100;
 
   // Mouse tracking
   const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
@@ -794,7 +795,6 @@ function App() {
         });
 
       if (selectError) throw selectError;
-
       if (!movieIds || movieIds.length === 0) return;
 
       const { data, error } = await supabase
@@ -811,7 +811,10 @@ function App() {
         poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
       }));
 
-      setCurrentMovies(prev => [...prev, ...moviesWithPoster]);
+      setCurrentMovies(prev => {
+        const remaining = MAX_PHASE1_MOVIES - prev.length;
+        return [...prev, ...moviesWithPoster.slice(0, remaining)];
+      });
       setPhase1BatchNumber(nextBatch);
     } catch (error) {
       console.error('Error loading more Phase 1 movies:', error);
@@ -1119,7 +1122,7 @@ function App() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  {phase1BatchNumber < MAX_PHASE1_BATCHES && (
+                  {phase1BatchNumber < MAX_PHASE1_BATCHES && currentMovies.length < MAX_PHASE1_MOVIES && (
                     <button
                       onClick={handleLoadMorePhase1Movies}
                       disabled={isLoadingMoreMovies}
