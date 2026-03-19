@@ -76,6 +76,9 @@ function App() {
   const [currentMoviesPhase, setCurrentMoviesPhase] = useState<'initial' | 'recommended' | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState<boolean>(false);
+  const [phase1BatchNumber, setPhase1BatchNumber] = useState<number>(1);
+  const [isLoadingMoreMovies, setIsLoadingMoreMovies] = useState<boolean>(false);
+  const MAX_PHASE1_BATCHES = 4;
 
   // Mouse tracking
   const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
@@ -773,7 +776,48 @@ function App() {
 
   const handleRateMore = async () => {
     setPhase('initial');
+    setPhase1BatchNumber(1);
     await fetchMovies('initial');
+  };
+
+  const handleLoadMorePhase1Movies = async () => {
+    if (!sessionId || isLoadingMoreMovies) return;
+    const nextBatch = phase1BatchNumber + 1;
+    if (nextBatch > MAX_PHASE1_BATCHES) return;
+
+    setIsLoadingMoreMovies(true);
+    try {
+      const { data: movieIds, error: selectError } = await supabase
+        .rpc('select_phase1_movies_for_session', {
+          p_session_id: sessionId,
+          p_batch_number: nextBatch
+        });
+
+      if (selectError) throw selectError;
+
+      if (!movieIds || movieIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('movies')
+        .select('*')
+        .in('id', movieIds);
+
+      if (error) throw error;
+      if (!data || data.length === 0) return;
+
+      const sortedMovies = movieIds.map(id => data.find(movie => movie.id === id)).filter(Boolean);
+      const moviesWithPoster = sortedMovies.map(movie => ({
+        ...movie,
+        poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
+      }));
+
+      setCurrentMovies(prev => [...prev, ...moviesWithPoster]);
+      setPhase1BatchNumber(nextBatch);
+    } catch (error) {
+      console.error('Error loading more Phase 1 movies:', error);
+    } finally {
+      setIsLoadingMoreMovies(false);
+    }
   };
 
   const handleFinishAttempt = () => {
@@ -1074,18 +1118,36 @@ function App() {
                   {getValidRatingsCount()}/{minimumRatingsRequired} minimum ratings completed
                 </p>
 
-                {/* Duplicate button at bottom of Phase 1 */}
-                {canProceedToChoice() && (
-                  <button
-                    onClick={() => {
-                      recordPhaseTransition('initial', 'choice');
-                      setPhase('choice');
-                    }}
-                    className="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
-                  >
-                    Continue to Next Step
-                  </button>
-                )}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  {phase1BatchNumber < MAX_PHASE1_BATCHES && (
+                    <button
+                      onClick={handleLoadMorePhase1Movies}
+                      disabled={isLoadingMoreMovies}
+                      className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg border border-gray-600 flex items-center gap-2"
+                    >
+                      {isLoadingMoreMovies ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          Loading More...
+                        </>
+                      ) : (
+                        'Load More Movies'
+                      )}
+                    </button>
+                  )}
+
+                  {canProceedToChoice() && (
+                    <button
+                      onClick={() => {
+                        recordPhaseTransition('initial', 'choice');
+                        setPhase('choice');
+                      }}
+                      className="bg-amber-500 hover:bg-amber-600 text-black font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
+                    >
+                      Continue to Next Step
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
