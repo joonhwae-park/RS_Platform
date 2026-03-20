@@ -22,9 +22,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         <div className="flex flex-col gap-1">
           <span className="text-amber-400 font-medium">{label}</span>
           {label.includes('Initial') && (
-            <span className="text-gray-400 text-sm italic">
-              💡 Rate more movies to get more accurate recommendations!
-            </span>
+            <>
+              <span className="text-gray-300 text-sm">
+                Please rate the ones you feel most confident evaluating.
+              </span>
+              <span className="text-gray-400 text-sm italic">
+                💡 Rate more movies to get more accurate recommendations!
+              </span>
+            </>
           )}
         </div>
         <span className="text-white">
