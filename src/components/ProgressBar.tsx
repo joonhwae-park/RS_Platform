@@ -17,7 +17,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const minimumPercentage = minimum ? (minimum / total) * 100 : 0;
 
   return (
-    <div className="w-full mb-2">
+    <div className="w-full mb-0">
       <div className="flex justify-between items-center mb-2">
         <div className="flex flex-col gap-1">
           <span className="text-amber-400 font-medium">{label}</span>
