@@ -76,6 +76,8 @@ function App() {
   const [currentMoviesPhase, setCurrentMoviesPhase] = useState<'initial' | 'recommended' | null>(null);
   const [isRestoringSession, setIsRestoringSession] = useState<boolean>(true);
   const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState<boolean>(false);
+  const [phase1BatchNumber, setPhase1BatchNumber] = useState<number>(1);
+  const [isLoadingMoreMovies, setIsLoadingMoreMovies] = useState<boolean>(false);
 
   // Mouse tracking
   const { saveRemainingEvents } = useMouseTracking(sessionId, phase !== 'intro' && phase !== 'complete');
@@ -309,9 +311,12 @@ function App() {
       if (type === 'initial') {
         console.log('Selecting Phase 1 movies for session:', currentSessionId);
 
-        // Call the database function to select 30 Phase 1 movies
+        // Reset batch state for fresh Phase 1 load
+        setPhase1BatchNumber(1);
+
+        // Call the database function to select 30 Phase 1 movies (batch 1)
         const { data: movieIds, error: selectError } = await supabase
-          .rpc('select_phase1_movies_for_session', { p_session_id: currentSessionId });
+          .rpc('select_phase1_movies_for_session', { p_session_id: currentSessionId, p_batch_number: 1 });
 
         if (selectError) {
           console.error('Error selecting Phase 1 movies:', selectError);
@@ -455,6 +460,54 @@ function App() {
     } finally {
       setLoadingMovies(false);
       console.log('=== FETCH MOVIES END ===');
+    }
+  };
+
+  const loadMorePhase1Movies = async () => {
+    if (!sessionId || isLoadingMoreMovies || currentMovies.length >= 100) return;
+
+    const nextBatch = phase1BatchNumber + 1;
+    if (nextBatch > 4) return;
+
+    setIsLoadingMoreMovies(true);
+    try {
+      const { data: movieIds, error: selectError } = await supabase
+        .rpc('select_phase1_movies_for_session', { p_session_id: sessionId, p_batch_number: nextBatch });
+
+      if (selectError) {
+        console.error('Error loading more Phase 1 movies:', selectError);
+        return;
+      }
+
+      if (!movieIds || movieIds.length === 0) {
+        console.warn('No more Phase 1 movies available');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('movies')
+        .select('*')
+        .in('id', movieIds);
+
+      if (error) {
+        console.error('Error fetching more movie details:', error);
+        return;
+      }
+
+      if (!data || data.length === 0) return;
+
+      const sortedMovies = movieIds.map(id => data.find(movie => movie.id === id)).filter(Boolean);
+
+      const moviesWithStoragePoster = sortedMovies.map(movie => ({
+        ...movie,
+        poster: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/posters/${movie.id}.jpg?t=${CACHE_BUSTER}`
+      }));
+
+      setCurrentMovies(prev => [...prev, ...moviesWithStoragePoster]);
+      setPhase1BatchNumber(nextBatch);
+      console.log('Loaded more Phase 1 movies, batch:', nextBatch, 'count:', moviesWithStoragePoster.length);
+    } finally {
+      setIsLoadingMoreMovies(false);
     }
   };
 
@@ -771,6 +824,19 @@ function App() {
     }
   };
 
+  const recordPhase1MoviesShown = async (count: number) => {
+    if (!sessionId || sessionId.startsWith('local_')) return;
+    try {
+      await supabase
+        .from('user_sessions')
+        .update({ phase1_movies_shown: count })
+        .eq('id', sessionId);
+      console.log('phase1_movies_shown recorded:', count);
+    } catch (error) {
+      console.error('Error recording phase1_movies_shown:', error);
+    }
+  };
+
   const handleRateMore = async () => {
     setPhase('initial');
     await fetchMovies('initial');
@@ -992,6 +1058,7 @@ function App() {
               <div className="text-center mb-6">
                 <button
                   onClick={() => {
+                    recordPhase1MoviesShown(currentMovies.length);
                     recordPhaseTransition('initial', 'choice');
                     setPhase('choice');
                   }}
@@ -1074,10 +1141,31 @@ function App() {
                   {getValidRatingsCount()}/{minimumRatingsRequired} minimum ratings completed
                 </p>
 
+                {/* Load More button */}
+                {currentMovies.length < 100 && (
+                  <div className="mb-6">
+                    <button
+                      onClick={loadMorePhase1Movies}
+                      disabled={isLoadingMoreMovies}
+                      className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2 mx-auto"
+                    >
+                      {isLoadingMoreMovies ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          Loading...
+                        </>
+                      ) : (
+                        `Load More Movies (${currentMovies.length}/100 shown)`
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 {/* Duplicate button at bottom of Phase 1 */}
                 {canProceedToChoice() && (
                   <button
                     onClick={() => {
+                      recordPhase1MoviesShown(currentMovies.length);
                       recordPhaseTransition('initial', 'choice');
                       setPhase('choice');
                     }}
