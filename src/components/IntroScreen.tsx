@@ -23,6 +23,7 @@ export const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
           <div className="bg-amber-500 bg-opacity-10 border border-amber-500 rounded-xl p-6 mb-8 max-w-3xl mx-auto">
             <h3 className="text-amber-400 font-semibold text-lg mb-3">Important Notice</h3>
             <p className="text-gray-300 leading-relaxed">
+              Given a list of up to 100 movies, please <span className="font-bold text-amber-200">rate the ones you feel most confident evaluating</span>.
               Providing more frequent and accurate ratings will lead to more precise recommendations. 
               Upon completion of this study, we will conduct a lottery in which the winner will receive 
               a video-on-demand (VOD) rental of their highest-rated recommended movie as a reward.
