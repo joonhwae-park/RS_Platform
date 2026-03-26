@@ -187,6 +187,18 @@ function App() {
     }
   };
 
+  const savePhase1MoviesShown = async () => {
+    if (!sessionId || sessionId.startsWith('local_')) return;
+    try {
+      await supabase
+        .from('user_sessions')
+        .update({ phase1_movies_shown: currentMovies.length })
+        .eq('id', sessionId);
+    } catch (error) {
+      console.error('Error saving phase1_movies_shown:', error);
+    }
+  };
+
   const recordPhaseTransition = async (fromPhase: string, toPhase: string) => {
     if (!sessionId || sessionId.startsWith('local_')) return;
 
@@ -1039,6 +1051,7 @@ function App() {
               <div className="text-center mb-6">
                 <button
                   onClick={() => {
+                    savePhase1MoviesShown();
                     recordPhaseTransition('initial', 'choice');
                     setPhase('choice');
                   }}
