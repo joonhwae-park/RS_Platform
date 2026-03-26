@@ -30,7 +30,7 @@ P5_ROOT = os.getenv("P5_ROOT", "/workspace/P5-main")
 P5_CKPT = os.getenv("P5_CKPT", "/models/p5/mvt_aug_epoch10.pth")
 P5_BACKBONE = os.getenv("P5_BACKBONE", "/models/t5-small")
 P5_MAX_LEN = int(os.getenv("P5_MAX_LEN", "256"))
-P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "6"))
+P5_GEN_MAX_LEN = int(os.getenv("P5_GEN_MAX_LEN", "16"))
 P5_DROPOUT = float(os.getenv("P5_DROPOUT", "0.1"))
 P5_BATCH = int(os.getenv("P5_BATCH", "16"))
 
@@ -308,8 +308,8 @@ def make_p5_prompt(session_id: str, movie_id: str, history: Optional[List[Dict]]
             # Use integer format for display since user ratings are integers
             history_str += f"movie_{hist_mid}:{int(hist_rating)}, "
         history_str = history_str.rstrip(", ")
-        return f"{history_str}. {base_prompt} (0 to 10, precise decimal allowed)"
-    return f"{base_prompt} (0 to 10, precise decimal allowed)"
+        return f"{history_str}. {base_prompt} (0.0 being lowest and 10.0 being highest, decimals allowed)"
+    return f"{base_prompt} (0.0 being lowest and 10.0 being highest, decimals allowed)"
 
 def _build_training_examples(session_id: str, history: List[Dict]) -> List[Tuple[str, str]]:
     """
@@ -388,7 +388,7 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
             logger.info(f"Sample prompt: {batch[0][:200]}...")
             logger.info(f"Input tokens: {enc['input_ids'].shape}")
 
-        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=1)
+        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=2, do_sample=False)
         
         dec = tokenizer.batch_decode(out, skip_special_tokens=True)
 
