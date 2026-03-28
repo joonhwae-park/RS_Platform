@@ -388,7 +388,7 @@ def p5_score_candidates_mapped(model, tokenizer, session_id: str,
             logger.info(f"Sample prompt: {batch[0][:200]}...")
             logger.info(f"Input tokens: {enc['input_ids'].shape}")
 
-        out = model.generate(**enc, max_new_tokens=P5_GEN_MAX_LEN, num_beams=2, do_sample=False)
+        out = model.generate(**enc, max_length=P5_GEN_MAX_LEN, num_beams=2, do_sample=False)
         
         dec = tokenizer.batch_decode(out, skip_special_tokens=True)
 
